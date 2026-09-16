@@ -43,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUser: AuthUser = {
         id: res.data.id,
         name: res.data.name,
+        username: res.data.username,
         email: res.data.email,
         roles: res.data.roles ?? [],
         permissions: res.data.permissions ?? [],

@@ -20,7 +20,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface User {
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   avatarUrl?: string;
 }
 
@@ -105,7 +106,7 @@ export default function ProfilePage() {
                 <CardTitle className="text-xl">
                   Welcome back, {user.name}
                 </CardTitle>
-                <CardDescription>{user.email}</CardDescription>
+                <CardDescription>@{user.username}</CardDescription>
               </div>
             </CardHeader>
 

@@ -1,7 +1,8 @@
 export interface AuthUser {
   id: number;
   name: string;
-  email: string;
+  username: string;
+  email: string | null;
   roles: string[];
   permissions: string[];
 }
@@ -18,6 +19,7 @@ export interface Loan {
   id: number;
   loan_number: string | null;
   name: string;
+  username: string;
   email: string | null;
   phone: string | null;
   location: string | null;
@@ -36,8 +38,18 @@ export interface Loan {
   updated_at: string;
 }
 
+export interface LoanHistoryEntry {
+  type: "interest" | "payment";
+  date: string;
+  amount: number;
+  day?: number;
+  note?: string | null;
+  recorded_by?: string | null;
+}
+
 export interface LoanFormValues {
   name: string;
+  username: string;
   email: string;
   password: string;
   phone: string;

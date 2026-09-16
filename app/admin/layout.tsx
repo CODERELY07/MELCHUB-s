@@ -47,7 +47,7 @@ export default function AdminLayout({
         <h1 className="text-xl font-semibold">You don&apos;t have access to this page</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
           This area is restricted to admin accounts. You&apos;re signed in as{" "}
-          {user.email}.
+          {user.username}.
         </p>
         <Button onClick={() => router.push("/")}>Back to home</Button>
       </div>
@@ -77,7 +77,7 @@ export default function AdminLayout({
 
         <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
           <div className="truncate px-2 text-xs text-muted-foreground">
-            {user.email}
+            {user.username}
           </div>
           <Button
             variant="ghost"
