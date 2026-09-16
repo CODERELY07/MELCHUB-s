@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Banknote, History, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -14,8 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { LoanHistoryTable } from "@/components/loan-history-table";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
-import type { Loan, LoanFormValues, LoanStatus } from "@/lib/types";
+import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus } from "@/lib/types";
 
 const STATUS_OPTIONS: LoanStatus[] = [
   "pending",
@@ -37,6 +38,7 @@ const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "dest
 
 const EMPTY_FORM: LoanFormValues = {
   name: "",
+  username: "",
   email: "",
   password: "",
   phone: "",
@@ -59,6 +61,18 @@ export default function AdminLoansPage() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyLoan, setHistoryLoan] = useState<Loan | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<LoanHistoryEntry[] | null>(null);
+  const [historyError, setHistoryError] = useState("");
+
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentLoan, setPaymentLoan] = useState<Loan | null>(null);
+  const [paymentForm, setPaymentForm] = useState({ amount: "", note: "" });
+  const [paymentError, setPaymentError] = useState("");
+  const [savingPayment, setSavingPayment] = useState(false);
+
   const router = useRouter();
 
   const loadLoans = useCallback(() => {
@@ -93,6 +107,7 @@ export default function AdminLoansPage() {
     setEditingLoan(loan);
     setForm({
       name: loan.name,
+      username: loan.username,
       email: loan.email ?? "",
       password: "",
       phone: loan.phone ?? "",
@@ -156,6 +171,49 @@ export default function AdminLoansPage() {
     }
   };
 
+  const openHistoryModal = (loan: Loan) => {
+    setHistoryLoan(loan);
+    setHistoryEntries(null);
+    setHistoryError("");
+    setHistoryModalOpen(true);
+
+    api
+      .get(`/loans/${loan.id}/history`)
+      .then((res) => setHistoryEntries(res.data))
+      .catch(() => setHistoryError("Couldn't load this loan's history."));
+  };
+
+  const openPaymentModal = (loan: Loan) => {
+    setPaymentLoan(loan);
+    setPaymentForm({ amount: "", note: "" });
+    setPaymentError("");
+    setPaymentModalOpen(true);
+  };
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paymentLoan) return;
+
+    setPaymentError("");
+    setSavingPayment(true);
+
+    try {
+      await api.post(`/loans/${paymentLoan.id}/payments`, paymentForm);
+      setPaymentModalOpen(false);
+      loadLoans();
+    } catch (err: unknown) {
+      const responseData = isAxiosError(err) ? err.response?.data : undefined;
+      const messages = responseData?.errors as Record<string, string[]> | undefined;
+      setPaymentError(
+        messages
+          ? Object.values(messages).flat().join(" ")
+          : responseData?.message || "Couldn't record this payment."
+      );
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
@@ -215,7 +273,7 @@ export default function AdminLoansPage() {
                 <td className="px-3 py-2">
                   <div className="font-medium">{loan.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {loan.email} {loan.phone ? `· ${loan.phone}` : ""}
+                    @{loan.username} {loan.phone ? `· ${loan.phone}` : ""}
                   </div>
                 </td>
                 <td className="px-3 py-2">{formatCurrency(loan.total_loan)}</td>
@@ -229,6 +287,22 @@ export default function AdminLoansPage() {
                 <td className="px-3 py-2">{formatDate(loan.due_date)}</td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openPaymentModal(loan)}
+                      aria-label={`Record payment for ${loan.name}`}
+                    >
+                      <Banknote className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => openHistoryModal(loan)}
+                      aria-label={`View history for ${loan.name}`}
+                    >
+                      <History className="size-3.5" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -283,7 +357,20 @@ export default function AdminLoansPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                required
+                placeholder="Used to log in to the borrower portal"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="email">
+                Email <span className="text-muted-foreground">(optional)</span>
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -427,6 +514,75 @@ export default function AdminLoansPage() {
               ) : (
                 "Create loan"
               )}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={historyModalOpen}
+        onClose={() => setHistoryModalOpen(false)}
+        title={`History for ${historyLoan?.loan_number ?? ""}`}
+        description={historyLoan ? `${historyLoan.name} · ${formatCurrency(historyLoan.balance)} remaining` : undefined}
+      >
+        {historyError && (
+          <Alert variant="destructive">
+            <AlertDescription>{historyError}</AlertDescription>
+          </Alert>
+        )}
+        {!historyEntries && !historyError ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <LoanHistoryTable entries={historyEntries ?? []} />
+        )}
+      </Modal>
+
+      <Modal
+        open={paymentModalOpen}
+        onClose={() => setPaymentModalOpen(false)}
+        title={`Record payment for ${paymentLoan?.name ?? ""}`}
+        description={paymentLoan ? `Current balance: ${formatCurrency(paymentLoan.balance)}` : undefined}
+      >
+        <form onSubmit={handlePaymentSubmit} className="flex flex-col gap-4">
+          {paymentError && (
+            <Alert variant="destructive">
+              <AlertDescription>{paymentError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="payment_amount">Amount received</Label>
+            <Input
+              id="payment_amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+              value={paymentForm.amount}
+              onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="payment_note">
+              Note <span className="text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              id="payment_note"
+              placeholder="e.g. Paid via GCash"
+              value={paymentForm.note}
+              onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setPaymentModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={savingPayment}>
+              {savingPayment ? <Loader2 className="size-4 animate-spin" /> : "Record payment"}
             </Button>
           </div>
         </form>
