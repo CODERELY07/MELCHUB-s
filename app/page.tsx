@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Loader2 } from "lucide-react";
+import { LogOut, Loader2, LayoutDashboard } from "lucide-react";
 
 import api from "@/lib/axios";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,6 +29,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
@@ -82,9 +84,9 @@ export default function ProfilePage() {
           </CardContent>
         ) : !user ? (
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
-            <CardTitle className="text-lg">You're not signed in</CardTitle>
+            <CardTitle className="text-lg">You&apos;re not signed in</CardTitle>
             <CardDescription>
-              We couldn't verify your session. Please log in again.
+              We couldn&apos;t verify your session. Please log in again.
             </CardDescription>
             <Button className="mt-4" onClick={() => router.push("/login")}>
               Go to login
@@ -107,7 +109,17 @@ export default function ProfilePage() {
               </div>
             </CardHeader>
 
-            <CardFooter>
+            <CardFooter className="flex flex-col gap-2">
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => router.push("/admin/dashboard")}
+                >
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Go to Admin Dashboard
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 className="w-full"

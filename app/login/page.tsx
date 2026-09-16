@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-
+import { isAxiosError } from "axios";
 import api from "@/lib/axios";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { refresh } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +43,11 @@ export default function LoginPage() {
       // this line entirely.
       localStorage.setItem("token", response.data.token);
 
-      router.push("/");
-    } catch (err: any) {
+      const user = await refresh();
+      router.push(user?.roles.includes("admin") ? "/admin/dashboard" : "/");
+    } catch (err: unknown) {
       setError(
-        err.response?.data?.message ||
+        (isAxiosError(err) && err.response?.data?.message) ||
           "We couldn't log you in. Check your details and try again."
       );
     } finally {
@@ -132,16 +135,6 @@ export default function LoginPage() {
                 "Log in"
               )}
             </Button>
-
-            <p className="text-center text-sm text-muted-foreground">
-              Don&apos;t have an account?{" "}
-              <Link
-                href="/signup"
-                className="font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Sign up
-              </Link>
-            </p>
           </CardFooter>
         </form>
       </Card>
