@@ -69,14 +69,14 @@ export default function AdminAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Analytics</h1>
           <p className="text-sm text-muted-foreground">
             A full picture of your lending activity, past 12 months.
           </p>
         </div>
-        <Button variant="outline" onClick={() => downloadAnalyticsPdf(data)}>
+        <Button variant="outline" onClick={() => downloadAnalyticsPdf(data)} className="self-start sm:self-auto">
           <Download className="size-4" />
           Download PDF
         </Button>

@@ -19,7 +19,7 @@ export function DonutChart({ data }: DonutChartProps) {
   let offset = 0;
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-wrap items-center gap-6">
       <svg viewBox={`0 0 ${size} ${size}`} className="size-40 shrink-0" role="img" aria-label="Status breakdown">
         <circle cx={center} cy={center} r={radius} fill="none" stroke="var(--color-muted)" strokeWidth={strokeWidth} />
         {total > 0 &&

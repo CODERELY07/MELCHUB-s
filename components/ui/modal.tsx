@@ -37,7 +37,7 @@ function Modal({ open, onClose, title, description, children, className }: Modal
       }}
       data-slot="modal"
       className={cn(
-        "m-auto w-full max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-lg backdrop:bg-black/50 open:animate-in open:fade-in-0 open:zoom-in-95",
+        "m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-lg backdrop:bg-black/50 open:animate-in open:fade-in-0 open:zoom-in-95",
         className
       )}
     >

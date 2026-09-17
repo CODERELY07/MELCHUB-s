@@ -2,21 +2,18 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Link from "next/link";
 import {
   LayoutDashboard,
   Landmark,
   BarChart3,
   ReceiptText,
   Settings,
-  LogOut,
   Loader2,
 } from "lucide-react";
 
 import { useAuth, ADMIN_LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
-import { InstallPwaButton } from "@/components/install-pwa-button";
-import { cn } from "@/lib/utils";
+import { AppShell } from "@/components/app-shell";
 
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -74,51 +71,17 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
-      <aside className="flex w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-4">
-        <div className="mb-6 flex items-center gap-2 px-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary font-heading text-sm font-bold text-primary-foreground">
-            M
-          </div>
-          <div className="text-sm font-semibold text-sidebar-foreground">MELCHUB Admin</div>
-        </div>
-
-        {NAV_ITEMS.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
-              pathname?.startsWith(item.href)
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-            )}
-          >
-            <item.icon className="size-4" />
-            {item.label}
-          </Link>
-        ))}
-
-        <div className="mt-auto flex flex-col gap-2 border-t border-sidebar-border pt-4">
-          <div className="truncate px-2 text-xs text-muted-foreground">
-            {user.username}
-          </div>
-          <InstallPwaButton />
-          <Button
-            variant="ghost"
-            className="justify-start"
-            onClick={async () => {
-              await logout();
-              router.push(ADMIN_LOGIN_PATH);
-            }}
-          >
-            <LogOut className="size-4" />
-            Log out
-          </Button>
-        </div>
-      </aside>
-
-      <main className="flex-1 overflow-x-hidden p-6">{children}</main>
-    </div>
+    <AppShell
+      title="MELCHUB Admin"
+      navItems={NAV_ITEMS}
+      isActive={(href) => pathname?.startsWith(href) ?? false}
+      userLabel={user.username}
+      onLogout={async () => {
+        await logout();
+        router.push(ADMIN_LOGIN_PATH);
+      }}
+    >
+      {children}
+    </AppShell>
   );
 }

@@ -91,14 +91,14 @@ export default function AdminPaymentProofsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Payment Proofs</h1>
           <p className="text-sm text-muted-foreground">
             Review GCash screenshots borrowers have submitted.
           </p>
         </div>
-        <div className="flex gap-1 rounded-lg border border-border p-1">
+        <div className="flex gap-1 self-start rounded-lg border border-border p-1 sm:self-auto">
           <Button
             size="sm"
             variant={filter === "pending" ? "default" : "ghost"}

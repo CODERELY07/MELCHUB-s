@@ -73,7 +73,7 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
   return (
     <dialog
       open
-      className="fixed inset-0 z-50 m-auto w-full max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60"
+      className="fixed inset-0 z-50 m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60"
     >
       <form onSubmit={handleSubmit} className="flex max-h-[85vh] flex-col">
         <div className="border-b border-border p-6 pb-4">
