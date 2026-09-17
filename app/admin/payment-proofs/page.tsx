@@ -155,7 +155,7 @@ export default function AdminPaymentProofsPage() {
                 <td className="px-3 py-2">{formatDate(proof.created_at)}</td>
                 <td className="px-3 py-2">
                   <a
-                    href={proof.drive_file_url}
+                    href={proof.file_url}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1 text-primary hover:underline"

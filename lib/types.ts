@@ -63,8 +63,8 @@ export interface PaymentProof {
   id: number;
   loan_id: number;
   amount: string;
-  drive_file_id: string;
-  drive_file_url: string;
+  file_path: string;
+  file_url: string;
   status: PaymentProofStatus;
   note: string | null;
   reviewed_by: number | null;
