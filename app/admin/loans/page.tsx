@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Banknote, Bell, BellRing, History, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Banknote, Bell, BellRing, History, Loader2, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -78,6 +78,12 @@ export default function AdminLoansPage() {
   const [notifyingAll, setNotifyingAll] = useState(false);
   const [notifyResult, setNotifyResult] = useState("");
   const [notifyError, setNotifyError] = useState("");
+
+  const [messageModalOpen, setMessageModalOpen] = useState(false);
+  const [messageLoan, setMessageLoan] = useState<Loan | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [messageError, setMessageError] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
 
   const router = useRouter();
 
@@ -260,16 +266,44 @@ export default function AdminLoansPage() {
     }
   };
 
+  const openMessageModal = (loan: Loan) => {
+    setMessageLoan(loan);
+    setMessageText(
+      `Hi ${loan.name}, this is MELCHUB regarding your loan ${loan.loan_number} (balance: ${formatCurrency(loan.balance)}). `
+    );
+    setMessageError("");
+    setMessageModalOpen(true);
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageLoan) return;
+
+    setMessageError("");
+    setSendingMessage(true);
+
+    try {
+      await api.post(`/loans/${messageLoan.id}/sms`, { message: messageText });
+      setMessageModalOpen(false);
+      setNotifyResult(`Message sent to ${messageLoan.name}.`);
+      loadLoans();
+    } catch (err: unknown) {
+      setMessageError((isAxiosError(err) && err.response?.data?.message) || "Couldn't send that message.");
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Loans</h1>
           <p className="text-sm text-muted-foreground">
             Manage borrowers and their loan records.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleNotifyAllDue} disabled={notifyingAll}>
             {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
             Notify all due
@@ -366,6 +400,16 @@ export default function AdminLoansPage() {
                     <Button
                       variant="ghost"
                       size="icon-sm"
+                      onClick={() => openMessageModal(loan)}
+                      disabled={!loan.phone}
+                      aria-label={`Message ${loan.name}`}
+                      title={loan.phone ? undefined : "No phone number on file"}
+                    >
+                      <MessageSquare className="size-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => openPaymentModal(loan)}
                       aria-label={`Record payment for ${loan.name}`}
                     >
@@ -421,8 +465,8 @@ export default function AdminLoansPage() {
             </Alert>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 space-y-1.5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="name">Full name</Label>
               <Input
                 id="name"
@@ -564,7 +608,7 @@ export default function AdminLoansPage() {
               />
             </div>
 
-            <div className="col-span-2 space-y-1.5">
+            <div className="sm:col-span-2 space-y-1.5">
               <Label htmlFor="notes">Notes</Label>
               <Textarea
                 id="notes"
@@ -659,6 +703,43 @@ export default function AdminLoansPage() {
             </Button>
             <Button type="submit" disabled={savingPayment}>
               {savingPayment ? <Loader2 className="size-4 animate-spin" /> : "Record payment"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={messageModalOpen}
+        onClose={() => setMessageModalOpen(false)}
+        title={`Message ${messageLoan?.name ?? ""}`}
+        description={messageLoan?.phone ? `Sent by SMS to ${messageLoan.phone}` : undefined}
+      >
+        <form onSubmit={handleSendMessage} className="flex flex-col gap-4">
+          {messageError && (
+            <Alert variant="destructive">
+              <AlertDescription>{messageError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="message_text">Message</Label>
+            <Textarea
+              id="message_text"
+              required
+              maxLength={640}
+              rows={5}
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">{messageText.length}/640</p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setMessageModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={sendingMessage}>
+              {sendingMessage ? <Loader2 className="size-4 animate-spin" /> : "Send SMS"}
             </Button>
           </div>
         </form>
