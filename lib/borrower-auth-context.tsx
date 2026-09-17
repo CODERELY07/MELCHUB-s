@@ -17,6 +17,7 @@ interface BorrowerAuthContextValue {
   loading: boolean;
   refresh: () => Promise<Loan | null>;
   logout: () => Promise<void>;
+  setLoan: (loan: Loan) => void;
 }
 
 const BorrowerAuthContext = createContext<BorrowerAuthContextValue | undefined>(
@@ -72,7 +73,7 @@ export function BorrowerAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <BorrowerAuthContext.Provider value={{ loan, loading, refresh, logout }}>
+    <BorrowerAuthContext.Provider value={{ loan, loading, refresh, logout, setLoan }}>
       {children}
     </BorrowerAuthContext.Provider>
   );
