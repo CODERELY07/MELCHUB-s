@@ -62,13 +62,29 @@ export default function AdminDashboardPage() {
   const activeCount = loans.filter((l) => l.status === "active").length;
 
   const stats = [
-    { label: "Total borrowers", value: String(loans.length), icon: Users },
-    { label: "Total loaned out", value: formatCurrency(totalLoaned), icon: HandCoins },
-    { label: "Total collected", value: formatCurrency(totalPaid), icon: Banknote },
+    {
+      label: "Total borrowers",
+      value: String(loans.length),
+      icon: Users,
+      color: "bg-chart-1/15 text-chart-1",
+    },
+    {
+      label: "Total loaned out",
+      value: formatCurrency(totalLoaned),
+      icon: HandCoins,
+      color: "bg-chart-2/15 text-chart-2",
+    },
+    {
+      label: "Total collected",
+      value: formatCurrency(totalPaid),
+      icon: Banknote,
+      color: "bg-chart-3/15 text-chart-3",
+    },
     {
       label: "Outstanding balance",
       value: formatCurrency(totalOutstanding),
       icon: AlertCircle,
+      color: "bg-chart-4/15 text-chart-4",
     },
   ];
 
@@ -83,12 +99,14 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label}>
+          <Card key={stat.label} className="overflow-hidden">
             <CardHeader>
-              <CardDescription className="flex items-center gap-1.5">
-                <stat.icon className="size-3.5" />
-                {stat.label}
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <CardDescription>{stat.label}</CardDescription>
+                <div className={`flex size-8 items-center justify-center rounded-lg ${stat.color}`}>
+                  <stat.icon className="size-4" />
+                </div>
+              </div>
               <CardTitle className="text-2xl">{stat.value}</CardTitle>
             </CardHeader>
           </Card>

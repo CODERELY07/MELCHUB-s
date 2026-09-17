@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
+import { Wallet, TrendingUp, HandCoins, PiggyBank } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
@@ -55,27 +56,47 @@ export default function PortalHomePage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardDescription>Principal</CardDescription>
+            <div className="flex items-center justify-between">
+              <CardDescription>Principal</CardDescription>
+              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-1/15 text-chart-1">
+                <Wallet className="size-4" />
+              </div>
+            </div>
             <CardTitle className="text-2xl">{formatCurrency(loan.total_loan)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardDescription>Interest so far ({loan.interest_rate}%/day)</CardDescription>
+            <div className="flex items-center justify-between">
+              <CardDescription>Interest so far ({loan.interest_rate}%/day)</CardDescription>
+              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-4/15 text-chart-4">
+                <TrendingUp className="size-4" />
+              </div>
+            </div>
             <CardTitle className="text-2xl">{formatCurrency(loan.interest_amount)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardDescription>Total paid</CardDescription>
+            <div className="flex items-center justify-between">
+              <CardDescription>Total paid</CardDescription>
+              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-3/15 text-chart-3">
+                <HandCoins className="size-4" />
+              </div>
+            </div>
             <CardTitle className="text-2xl">{formatCurrency(loan.total_paid)}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="overflow-hidden">
           <CardHeader>
-            <CardDescription>Balance remaining</CardDescription>
+            <div className="flex items-center justify-between">
+              <CardDescription>Balance remaining</CardDescription>
+              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-2/15 text-chart-2">
+                <PiggyBank className="size-4" />
+              </div>
+            </div>
             <CardTitle className="text-2xl">{formatCurrency(loan.balance)}</CardTitle>
           </CardHeader>
         </Card>

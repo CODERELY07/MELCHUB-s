@@ -52,9 +52,12 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-12">
-      <Card className="w-full max-w-sm shadow-lg">
-        <CardHeader className="space-y-1 text-center">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 py-12">
+      <Card className="w-full max-w-sm shadow-xl">
+        <CardHeader className="space-y-3 text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary font-heading text-lg font-bold text-primary-foreground shadow-md">
+            M
+          </div>
           <CardTitle className="text-2xl font-bold">My Loan</CardTitle>
           <CardDescription>
             Sign in with the username and password your loan officer gave you

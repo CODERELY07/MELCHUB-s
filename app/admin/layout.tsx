@@ -3,7 +3,15 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Landmark, LogOut, Loader2 } from "lucide-react";
+import {
+  LayoutDashboard,
+  Landmark,
+  BarChart3,
+  ReceiptText,
+  Settings,
+  LogOut,
+  Loader2,
+} from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -12,6 +20,9 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/loans", label: "Loans", icon: Landmark },
+  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/admin/payment-proofs", label: "Payment Proofs", icon: ReceiptText },
+  { href: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
 export default function AdminLayout({
@@ -55,9 +66,14 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="flex w-56 shrink-0 flex-col gap-1 border-r border-border bg-muted/30 p-4">
-        <div className="mb-4 px-2 text-sm font-semibold">MELCHUB Admin</div>
+    <div className="flex min-h-screen bg-muted/20">
+      <aside className="flex w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-4">
+        <div className="mb-6 flex items-center gap-2 px-2">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary font-heading text-sm font-bold text-primary-foreground">
+            M
+          </div>
+          <div className="text-sm font-semibold text-sidebar-foreground">MELCHUB Admin</div>
+        </div>
 
         {NAV_ITEMS.map((item) => (
           <Link
@@ -66,8 +82,8 @@ export default function AdminLayout({
             className={cn(
               "flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
               pathname?.startsWith(item.href)
-                ? "bg-muted text-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
             )}
           >
             <item.icon className="size-4" />
@@ -75,7 +91,7 @@ export default function AdminLayout({
           </Link>
         ))}
 
-        <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
+        <div className="mt-auto flex flex-col gap-2 border-t border-sidebar-border pt-4">
           <div className="truncate px-2 text-xs text-muted-foreground">
             {user.username}
           </div>
