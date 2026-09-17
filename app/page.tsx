@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
 import borrowerApi from "@/lib/borrower-axios";
@@ -29,8 +30,17 @@ export default function RootPage() {
           await api.get("/user");
           if (!cancelled) router.replace("/admin/dashboard");
           return;
-        } catch {
-          localStorage.removeItem("token");
+        } catch (err) {
+          if (isAxiosError(err) && err.response?.status === 401) {
+            localStorage.removeItem("token");
+          } else {
+            // Couldn't verify (offline, server hiccup) — don't sign the user
+            // out just because of that. Trust the stored token for now and
+            // let the dashboard's own offline-cache handling (see public/sw.js)
+            // take over from here, same as opening it directly would.
+            if (!cancelled) router.replace("/admin/dashboard");
+            return;
+          }
         }
       }
 
@@ -39,8 +49,13 @@ export default function RootPage() {
           await borrowerApi.get("/borrower/me");
           if (!cancelled) router.replace("/portal");
           return;
-        } catch {
-          localStorage.removeItem("borrower_token");
+        } catch (err) {
+          if (isAxiosError(err) && err.response?.status === 401) {
+            localStorage.removeItem("borrower_token");
+          } else {
+            if (!cancelled) router.replace("/portal");
+            return;
+          }
         }
       }
 
