@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
@@ -23,10 +23,19 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export default function PortalLoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { refresh } = useBorrowerAuth();
+  const { loan, loading, refresh } = useBorrowerAuth();
+
+  // Already signed in — go straight to the dashboard instead of showing the
+  // form again.
+  useEffect(() => {
+    if (!loading && loan) {
+      router.replace("/portal");
+    }
+  }, [loading, loan, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,6 +46,7 @@ export default function PortalLoginPage() {
       const response = await borrowerApi.post("/borrower/login", {
         username,
         password,
+        remember,
       });
       localStorage.setItem("borrower_token", response.data.token);
       await refresh();
@@ -95,6 +105,16 @@ export default function PortalLoginPage() {
                 required
               />
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-input"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              Remember me for 1 year
+            </label>
           </CardContent>
 
           <CardFooter>

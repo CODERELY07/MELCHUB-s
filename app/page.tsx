@@ -1,148 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Loader2, LayoutDashboard } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import api from "@/lib/axios";
-import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Skeleton } from "@/components/ui/skeleton";
+import borrowerApi from "@/lib/borrower-axios";
 
-interface User {
-  name: string;
-  username: string;
-  email: string | null;
-  avatarUrl?: string;
-}
-
-export default function ProfilePage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loggingOut, setLoggingOut] = useState(false);
+/**
+ * "/" is not a real destination page — it just figures out where a visitor
+ * actually belongs and sends them there, so nobody has to pass through here
+ * on the way to a dashboard they're already signed into. Checks the staff
+ * session first (arbitrary priority for the rare case both exist on the same
+ * browser — see docs/loans.md Part 5), then the borrower session, and falls
+ * back to the borrower/client login — not the staff one, which deliberately
+ * lives at an obscure URL (see docs/terms-and-pwa.md Part 5) instead of
+ * being the default entry point.
+ */
+export default function RootPage() {
   const router = useRouter();
-  const { isAdmin } = useAuth();
 
   useEffect(() => {
-    let isMounted = true;
+    let cancelled = false;
 
-    api
-      .get("/profile")
-      .then((res) => {
-        if (isMounted) setUser(res.data);
-      })
-      .catch((err) => {
-        if (err.response?.status === 401) {
+    async function decide() {
+      if (localStorage.getItem("token")) {
+        try {
+          await api.get("/user");
+          if (!cancelled) router.replace("/admin/dashboard");
+          return;
+        } catch {
           localStorage.removeItem("token");
-          router.push("/login");
         }
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+      }
+
+      if (localStorage.getItem("borrower_token")) {
+        try {
+          await borrowerApi.get("/borrower/me");
+          if (!cancelled) router.replace("/portal");
+          return;
+        } catch {
+          localStorage.removeItem("borrower_token");
+        }
+      }
+
+      if (!cancelled) router.replace("/portal/login");
+    }
+
+    decide();
 
     return () => {
-      isMounted = false;
+      cancelled = true;
     };
   }, [router]);
 
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    try {
-      await api.post("/logout");
-    } catch (e) {
-      console.error(e);
-    } finally {
-      localStorage.removeItem("token");
-      router.push("/login");
-    }
-  };
-
-  const initials = user?.name
-    ?.split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-12">
-      <Card className="w-full max-w-sm shadow-lg">
-        {loading ? (
-          <CardContent className="flex flex-col items-center gap-4 pt-6">
-            <Skeleton className="h-20 w-20 rounded-full" />
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="h-4 w-52" />
-          </CardContent>
-        ) : !user ? (
-          <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
-            <CardTitle className="text-lg">You&apos;re not signed in</CardTitle>
-            <CardDescription>
-              We couldn&apos;t verify your session. Please log in again.
-            </CardDescription>
-            <Button className="mt-4" onClick={() => router.push("/login")}>
-              Go to login
-            </Button>
-          </CardContent>
-        ) : (
-          <>
-            <CardHeader className="flex flex-col items-center gap-3 text-center">
-              <Avatar className="h-20 w-20">
-                <AvatarImage src={user.avatarUrl} alt={user.name} />
-                <AvatarFallback className="text-lg">
-                  {initials || "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="space-y-1">
-                <CardTitle className="text-xl">
-                  Welcome back, {user.name}
-                </CardTitle>
-                <CardDescription>@{user.username}</CardDescription>
-              </div>
-            </CardHeader>
-
-            <CardFooter className="flex flex-col gap-2">
-              {isAdmin && (
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => router.push("/admin/dashboard")}
-                >
-                  <LayoutDashboard className="mr-2 h-4 w-4" />
-                  Go to Admin Dashboard
-                </Button>
-              )}
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={handleLogout}
-                disabled={loggingOut}
-              >
-                {loggingOut ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging out...
-                  </>
-                ) : (
-                  <>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Log out
-                  </>
-                )}
-              </Button>
-            </CardFooter>
-          </>
-        )}
-      </Card>
+    <div className="flex min-h-screen items-center justify-center">
+      <Loader2 className="size-6 animate-spin text-muted-foreground" />
     </div>
   );
 }

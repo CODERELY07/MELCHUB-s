@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
@@ -22,11 +22,20 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { refresh } = useAuth();
+  const { user, loading, refresh } = useAuth();
+
+  // Already signed in (e.g. came back to this URL with a valid session) —
+  // go straight to the dashboard instead of showing the form again.
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/admin/dashboard");
+    }
+  }, [loading, user, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +43,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const response = await api.post("/login", { username, password });
+      const response = await api.post("/login", { username, password, remember });
 
       // NOTE: storing the token in localStorage is convenient but exposes it
       // to any script running on the page (XSS). If you control the backend,
@@ -42,8 +51,8 @@ export default function LoginPage() {
       // this line entirely.
       localStorage.setItem("token", response.data.token);
 
-      const user = await refresh();
-      router.push(user?.roles.includes("admin") ? "/admin/dashboard" : "/");
+      await refresh();
+      router.push("/admin/dashboard");
     } catch (err: unknown) {
       setError(
         (isAxiosError(err) && err.response?.data?.message) ||
@@ -114,6 +123,16 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
+
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                className="size-4 rounded border-input"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              Remember me for 1 year
+            </label>
           </CardContent>
 
           <CardFooter className="flex flex-col gap-4">

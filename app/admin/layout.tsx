@@ -13,7 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, ADMIN_LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { InstallPwaButton } from "@/components/install-pwa-button";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/login");
+      router.replace(ADMIN_LOGIN_PATH);
     }
   }, [loading, user, router]);
 
@@ -61,7 +61,14 @@ export default function AdminLayout({
           This area is restricted to admin accounts. You&apos;re signed in as{" "}
           {user.username}.
         </p>
-        <Button onClick={() => router.push("/")}>Back to home</Button>
+        <Button
+          onClick={async () => {
+            await logout();
+            router.push(ADMIN_LOGIN_PATH);
+          }}
+        >
+          Log out
+        </Button>
       </div>
     );
   }
@@ -102,7 +109,7 @@ export default function AdminLayout({
             className="justify-start"
             onClick={async () => {
               await logout();
-              router.push("/login");
+              router.push(ADMIN_LOGIN_PATH);
             }}
           >
             <LogOut className="size-4" />

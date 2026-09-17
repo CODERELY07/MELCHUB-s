@@ -12,6 +12,13 @@ import {
 import api from "@/lib/axios";
 import type { AuthUser } from "@/lib/types";
 
+// Deliberately not "/login" — an obscure, non-guessable path so the staff
+// login page doesn't sit at a predictable URL for scanners/bots. This is
+// obscurity, not access control: every admin API route is still gated by
+// its own auth:sanctum + role:admin middleware server-side regardless of
+// whether this path is ever discovered.
+export const ADMIN_LOGIN_PATH = "/M4RK31Y4DM1N";
+
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;

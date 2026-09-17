@@ -6,6 +6,7 @@ import { AlertCircle, Banknote, Bell, BellRing, History, Loader2, Pencil, Plus, 
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
+import { ADMIN_LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,7 +91,7 @@ export default function AdminLoansPage() {
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("token");
-          router.push("/login");
+          router.push(ADMIN_LOGIN_PATH);
           return;
         }
         setError("Couldn't load loans.");

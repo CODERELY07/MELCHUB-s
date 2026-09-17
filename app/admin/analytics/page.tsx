@@ -6,6 +6,7 @@ import { isAxiosError } from "axios";
 import { Download, Loader2 } from "lucide-react";
 
 import api from "@/lib/axios";
+import { ADMIN_LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -41,7 +42,7 @@ export default function AdminAnalyticsPage() {
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("token");
-          router.push("/login");
+          router.push(ADMIN_LOGIN_PATH);
           return;
         }
         setError("Couldn't load analytics.");

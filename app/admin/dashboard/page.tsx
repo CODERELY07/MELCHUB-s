@@ -6,6 +6,7 @@ import { AlertCircle, Banknote, HandCoins, TriangleAlert, Users } from "lucide-r
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
+import { ADMIN_LOGIN_PATH } from "@/lib/auth-context";
 import {
   Card,
   CardDescription,
@@ -29,7 +30,7 @@ export default function AdminDashboardPage() {
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("token");
-          router.push("/login");
+          router.push(ADMIN_LOGIN_PATH);
           return;
         }
         setError("Couldn't load loans.");
