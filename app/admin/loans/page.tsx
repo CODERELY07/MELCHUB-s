@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Banknote, History, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, Banknote, Bell, BellRing, History, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -72,6 +72,11 @@ export default function AdminLoansPage() {
   const [paymentForm, setPaymentForm] = useState({ amount: "", note: "" });
   const [paymentError, setPaymentError] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
+
+  const [notifyingId, setNotifyingId] = useState<number | null>(null);
+  const [notifyingAll, setNotifyingAll] = useState(false);
+  const [notifyResult, setNotifyResult] = useState("");
+  const [notifyError, setNotifyError] = useState("");
 
   const router = useRouter();
 
@@ -214,6 +219,46 @@ export default function AdminLoansPage() {
     }
   };
 
+  const handleNotify = async (loan: Loan) => {
+    setNotifyResult("");
+    setNotifyError("");
+    setNotifyingId(loan.id);
+
+    try {
+      await api.post(`/loans/${loan.id}/notify`);
+      setNotifyResult(`Notified ${loan.name}.`);
+      loadLoans();
+    } catch (err: unknown) {
+      setNotifyError((isAxiosError(err) && err.response?.data?.message) || "Couldn't send that notification.");
+    } finally {
+      setNotifyingId(null);
+    }
+  };
+
+  const handleNotifyAllDue = async () => {
+    if (!window.confirm("Send a reminder SMS to every borrower whose loan is due today or overdue?")) {
+      return;
+    }
+
+    setNotifyResult("");
+    setNotifyError("");
+    setNotifyingAll(true);
+
+    try {
+      const res = await api.post("/loans/notify-due");
+      const { sent, failed } = res.data as { sent: string[]; failed: string[] };
+      setNotifyResult(
+        `Notified ${sent.length} borrower${sent.length === 1 ? "" : "s"}` +
+          (failed.length ? `, ${failed.length} failed (${failed.join(", ")}).` : ".")
+      );
+      loadLoans();
+    } catch (err: unknown) {
+      setNotifyError((isAxiosError(err) && err.response?.data?.message) || "Couldn't send notifications.");
+    } finally {
+      setNotifyingAll(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
@@ -223,16 +268,32 @@ export default function AdminLoansPage() {
             Manage borrowers and their loan records.
           </p>
         </div>
-        <Button onClick={openCreateModal}>
-          <Plus className="size-4" />
-          New loan
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleNotifyAllDue} disabled={notifyingAll}>
+            {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
+            Notify all due
+          </Button>
+          <Button onClick={openCreateModal}>
+            <Plus className="size-4" />
+            New loan
+          </Button>
+        </div>
       </div>
 
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {notifyResult && (
+        <Alert>
+          <AlertDescription>{notifyResult}</AlertDescription>
+        </Alert>
+      )}
+      {notifyError && (
+        <Alert variant="destructive">
+          <AlertDescription>{notifyError}</AlertDescription>
         </Alert>
       )}
 
@@ -287,6 +348,20 @@ export default function AdminLoansPage() {
                 <td className="px-3 py-2">{formatDate(loan.due_date)}</td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleNotify(loan)}
+                      disabled={notifyingId === loan.id || !loan.phone}
+                      aria-label={`Notify ${loan.name}`}
+                      title={loan.phone ? undefined : "No phone number on file"}
+                    >
+                      {notifyingId === loan.id ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Bell className="size-3.5" />
+                      )}
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon-sm"
