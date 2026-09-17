@@ -63,7 +63,7 @@ export default function PortalHomePage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardDescription>Interest ({loan.interest_rate}%)</CardDescription>
+            <CardDescription>Interest so far ({loan.interest_rate}%/day)</CardDescription>
             <CardTitle className="text-2xl">{formatCurrency(loan.interest_amount)}</CardTitle>
           </CardHeader>
         </Card>

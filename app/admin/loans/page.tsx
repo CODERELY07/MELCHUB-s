@@ -437,7 +437,7 @@ export default function AdminLoansPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="interest_rate">Interest rate (%)</Label>
+              <Label htmlFor="interest_rate">Interest rate (% per day)</Label>
               <Input
                 id="interest_rate"
                 type="number"
