@@ -8,6 +8,7 @@ import { LayoutDashboard, UserRound, Wallet, LogOut, Loader2 } from "lucide-reac
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { Button } from "@/components/ui/button";
 import { TermsModal } from "@/components/terms-modal";
+import { InstallPwaButton } from "@/components/install-pwa-button";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -73,6 +74,7 @@ export default function PortalAppLayout({
           <div className="truncate px-2 text-xs text-muted-foreground">
             {loan.name}
           </div>
+          <InstallPwaButton />
           <Button
             variant="ghost"
             className="justify-start"

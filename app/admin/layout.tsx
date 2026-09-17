@@ -15,6 +15,7 @@ import {
 
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
+import { InstallPwaButton } from "@/components/install-pwa-button";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -95,6 +96,7 @@ export default function AdminLayout({
           <div className="truncate px-2 text-xs text-muted-foreground">
             {user.username}
           </div>
+          <InstallPwaButton />
           <Button
             variant="ghost"
             className="justify-start"
