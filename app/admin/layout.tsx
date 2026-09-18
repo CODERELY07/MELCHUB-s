@@ -8,6 +8,8 @@ import {
   BarChart3,
   ReceiptText,
   Settings,
+  UserPlus,
+  FileCheck2,
   Loader2,
 } from "lucide-react";
 
@@ -18,6 +20,8 @@ import { AppShell } from "@/components/app-shell";
 const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/loans", label: "Loans", icon: Landmark },
+  { href: "/admin/clients/new", label: "Add Client", icon: UserPlus },
+  { href: "/admin/loan-requests", label: "Loan Requests", icon: FileCheck2 },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/admin/payment-proofs", label: "Payment Proofs", icon: ReceiptText },
   { href: "/admin/settings", label: "Settings", icon: Settings },

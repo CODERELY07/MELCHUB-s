@@ -32,8 +32,8 @@ export interface Loan {
   is_overdue: boolean;
   status: LoanStatus;
   notes: string | null;
-  start_date: string;
-  due_date: string;
+  start_date: string | null;
+  due_date: string | null;
   closed_at: string | null;
   terms_accepted_at: string | null;
   terms_signature_name: string | null;
@@ -103,6 +103,25 @@ export interface AnalyticsData {
   status_breakdown: { status: LoanStatus; count: number }[];
   monthly_loans: { month: string; count: number; amount: number }[];
   monthly_collections: { month: string; amount: number }[];
+}
+
+export type LoanRequestPlan = "3_day" | "weekly";
+export type LoanRequestStatus = "pending" | "accepted" | "declined";
+
+export interface LoanRequest {
+  id: number;
+  loan_id: number;
+  plan: LoanRequestPlan;
+  message: string | null;
+  rules_acknowledged_at: string;
+  status: LoanRequestStatus;
+  admin_note: string | null;
+  reviewed_by: number | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  loan?: Pick<Loan, "id" | "loan_number" | "name" | "phone" | "status">;
+  reviewer?: { id: number; name: string } | null;
 }
 
 export interface LoanFormValues {
