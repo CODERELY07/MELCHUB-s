@@ -1,23 +1,25 @@
 // MELCHUB service worker — enables installing the app and using it offline.
 //
 // Strategy:
+//  - Page navigations: network-first. Always load fresh HTML when online so
+//    it matches the current JS bundles; fall back to the last cached copy of
+//    that page only when offline. (Serving stale HTML first breaks hydration
+//    after a deploy, which turns the login forms into plain GET submits.)
 //  - API requests (GET only): network-first. When online, always fetch fresh
-//    data and refresh the cache with it — "if it has internet it will update
-//    the data". When offline, fall back to the last cached response for that
-//    exact endpoint + logged-in account, so a borrower/admin can still see
-//    their last-known loan info with no connection.
-//  - Everything else (pages, JS, CSS, images): stale-while-revalidate — serve
-//    instantly from cache if we have it, then quietly refresh in the
-//    background.
+//    data and refresh the cache with it. When offline, fall back to the last
+//    cached response for that exact endpoint + logged-in account.
+//  - Static assets (/_next/static, icons, images): stale-while-revalidate —
+//    these are content-hashed, so a cached copy is always safe to serve.
 //  - Never intercepts non-GET requests: creating a loan, recording a
 //    payment, uploading a screenshot, etc. always require a live network
-//    connection and are never queued or faked offline. That's deliberate —
-//    silently "succeeding" a financial write while offline, then failing to
-//    sync it later, would be worse than just telling the user it needs a
-//    connection.
+//    connection and are never queued or faked offline.
+//  - Never lets a failed fetch resolve to `undefined` — that surfaces in the
+//    browser as ERR_FAILED ("This site can't be reached").
 
-const PAGE_CACHE = "melchub-pages-v1";
-const API_CACHE = "melchub-api-v1";
+const PAGE_CACHE = "melchub-pages-v2";
+const API_CACHE = "melchub-api-v2";
+const ASSET_CACHE = "melchub-assets-v2";
+const CACHES = [PAGE_CACHE, API_CACHE, ASSET_CACHE];
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -30,7 +32,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== PAGE_CACHE && key !== API_CACHE)
+            .filter((key) => !CACHES.includes(key))
             .map((key) => caches.delete(key))
         )
       )
@@ -46,13 +48,28 @@ self.addEventListener("fetch", (event) => {
   }
 
   const url = new URL(request.url);
+  const sameOrigin = url.origin === self.location.origin;
   const isApi = url.pathname.startsWith("/api/") || url.pathname.includes("/api/");
 
   if (isApi) {
-    event.respondWith(networkFirst(request));
-  } else {
+    event.respondWith(networkFirst(request, API_CACHE, apiCacheKey(request)));
+    return;
+  }
+
+  // Leave other cross-origin requests (fonts, Supabase storage, …) alone.
+  if (!sameOrigin) {
+    return;
+  }
+
+  if (request.mode === "navigate") {
+    event.respondWith(networkFirst(request, PAGE_CACHE, url.origin + url.pathname));
+    return;
+  }
+
+  if (url.pathname.startsWith("/_next/static/") || /\.(png|svg|ico|webp|jpg|jpeg|woff2?)$/.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(request));
   }
+  // Everything else (RSC payloads, dev/HMR requests, …) goes straight to the network.
 });
 
 /**
@@ -66,27 +83,23 @@ function apiCacheKey(request) {
   return request.url + suffix;
 }
 
-async function networkFirst(request) {
-  const cache = await caches.open(API_CACHE);
-  const key = apiCacheKey(request);
+async function networkFirst(request, cacheName, key) {
+  const cache = await caches.open(cacheName);
 
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    if (response.ok && (response.type === "basic" || cacheName === API_CACHE)) {
       cache.put(key, response.clone());
     }
     return response;
   } catch (err) {
     const cached = await cache.match(key);
-    if (cached) {
-      return cached;
-    }
-    throw err;
+    return cached || Response.error();
   }
 }
 
 async function staleWhileRevalidate(request) {
-  const cache = await caches.open(PAGE_CACHE);
+  const cache = await caches.open(ASSET_CACHE);
   const cached = await cache.match(request);
 
   const network = fetch(request)
@@ -96,7 +109,7 @@ async function staleWhileRevalidate(request) {
       }
       return response;
     })
-    .catch(() => cached);
+    .catch(() => cached || Response.error());
 
   return cached || network;
 }
