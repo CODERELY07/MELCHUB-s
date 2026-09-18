@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { LayoutDashboard, UserRound, Wallet, Loader2 } from "lucide-react";
 
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
+import { LOGIN_PATH } from "@/lib/auth-context";
 import { TermsModal } from "@/components/terms-modal";
 import { AppShell } from "@/components/app-shell";
 
@@ -25,7 +26,7 @@ export default function PortalAppLayout({
 
   useEffect(() => {
     if (!loading && !loan) {
-      router.replace("/portal/login");
+      router.replace(LOGIN_PATH);
     }
   }, [loading, loan, router]);
 
@@ -50,7 +51,7 @@ export default function PortalAppLayout({
         userLabel={loan.name}
         onLogout={async () => {
           await logout();
-          router.push("/portal/login");
+          router.push(LOGIN_PATH);
         }}
       >
         {children}

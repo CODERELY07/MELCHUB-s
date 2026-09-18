@@ -13,7 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { useAuth, ADMIN_LOGIN_PATH } from "@/lib/auth-context";
+import { useAuth, LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/app-shell";
 
@@ -38,7 +38,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace(ADMIN_LOGIN_PATH);
+      router.replace(LOGIN_PATH);
     }
   }, [loading, user, router]);
 
@@ -65,7 +65,7 @@ export default function AdminLayout({
         <Button
           onClick={async () => {
             await logout();
-            router.push(ADMIN_LOGIN_PATH);
+            router.push(LOGIN_PATH);
           }}
         >
           Log out
@@ -82,7 +82,7 @@ export default function AdminLayout({
       userLabel={user.username}
       onLogout={async () => {
         await logout();
-        router.push(ADMIN_LOGIN_PATH);
+        router.push(LOGIN_PATH);
       }}
     >
       {children}

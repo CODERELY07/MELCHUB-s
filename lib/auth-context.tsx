@@ -12,18 +12,14 @@ import {
 import api from "@/lib/axios";
 import type { AuthUser } from "@/lib/types";
 
-// Deliberately not "/login" — an obscure, non-guessable path so the staff
-// login page doesn't sit at a predictable URL for scanners/bots. This is
-// obscurity, not access control: every admin API route is still gated by
-// its own auth:sanctum + role:admin middleware server-side regardless of
-// whether this path is ever discovered.
-export const ADMIN_LOGIN_PATH = "/M4RK31Y4DM1N";
-
-// Set on every successful login (staff or borrower) so "/" — the installed
-// PWA's start_url, with no address bar to type a different one into — can
-// send a signed-out visitor back to the login they actually used last,
-// instead of always defaulting to the borrower one. See client/app/page.tsx.
-export const PREFERRED_LOGIN_KEY = "preferred_login";
+// One login page for both staff and borrowers (client/app/login/page.tsx) —
+// there used to be a separate, deliberately obscure staff-only URL here
+// (see docs/terms-and-pwa.md Part 5), but that's gone: this is a real,
+// predictable route now. Real access control was never this URL anyway —
+// every admin API route is still gated by its own auth:sanctum +
+// role:admin middleware server-side regardless of which frontend URL was
+// used to reach the login form.
+export const LOGIN_PATH = "/login";
 
 interface AuthContextValue {
   user: AuthUser | null;

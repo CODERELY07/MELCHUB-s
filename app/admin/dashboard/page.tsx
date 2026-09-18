@@ -6,7 +6,7 @@ import { AlertCircle, Banknote, HandCoins, Landmark, TriangleAlert, Users } from
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
-import { ADMIN_LOGIN_PATH } from "@/lib/auth-context";
+import { LOGIN_PATH } from "@/lib/auth-context";
 import {
   Card,
   CardDescription,
@@ -31,7 +31,7 @@ export default function AdminDashboardPage() {
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("token");
-          router.push(ADMIN_LOGIN_PATH);
+          router.push(LOGIN_PATH);
           return;
         }
         setError("Couldn't load loans.");
