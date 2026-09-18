@@ -230,6 +230,9 @@ A round, tinted initials avatar for every borrower-name context (loan tables/car
 - **Desktop (`lg`+):** flat list of icon+label items in a dedicated `sidebar` color role. Active/hover states use the trust-violet accent family — no separate "nav accent" color.
 - **Phone/tablet (below `lg`):** a fixed bottom tab bar (first four nav items + an always-present "More" tab), sticky minimal top app bar, and a "More" bottom sheet for overflow nav + account actions. Active tabs get a `bg-primary/10` pill behind the icon and a primary-colored, bolder label — the same tinted-badge language used everywhere else, applied to navigation.
 
+### Login (`/M4RK31Y4DM1N`, `/portal/login`)
+A single centered `Card` (`max-w-sm`, `shadow-xl`) on the gradient backdrop (`from-primary/10 via-background to-accent/20`): gradient brand mark, `text-3xl` title, description, form, full-width primary submit. The `ThemeToggle` (icon-only) is `absolute top-3 right-3` **on the `Card` itself** (`Card` carries `relative` for this), not on the page — a utility control belongs to the surface it acts on, the same reasoning as a modal's own close button, not floating separately beside it. The outer page container's `pt`/`pb` are safe-area-aware (`max(3rem, env(safe-area-inset-*))`) since this is a full-bleed screen in the installed PWA.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -244,3 +247,4 @@ A round, tinted initials avatar for every borrower-name context (loan tables/car
 - **Don't** add a display/serif typeface for emphasis; hierarchy in this system comes from weight and size on a single face.
 - **Don't** give any button, badge, or alert a hard-edged or solid-saturated destructive treatment; it breaks the one visual consistency rule this system enforces without exception.
 - **Don't** use a square icon chip for a new stat tile or avatar — circular badges are now the shape data/people get; square stays reserved for the brand mark and desktop nav icons.
+- **Don't** place a utility control (theme toggle, close button) absolutely on the *page* when it acts on a single centered card — anchor it to the card (`relative` on the `Card`) so it reads as part of that surface, not a stray element beside it.

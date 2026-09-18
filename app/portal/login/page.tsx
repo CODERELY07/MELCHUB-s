@@ -66,9 +66,9 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 py-12">
-      <ThemeToggle iconOnly className="absolute top-4 right-4" />
-      <Card className="w-full max-w-sm shadow-xl">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 pt-[max(3rem,env(safe-area-inset-top))] pb-[max(3rem,env(safe-area-inset-bottom))]">
+      <Card className="relative w-full max-w-sm shadow-xl">
+        <ThemeToggle iconOnly className="absolute top-3 right-3" />
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary),var(--chart-5)_30%)] font-heading text-lg font-bold text-primary-foreground shadow-md">
             M
