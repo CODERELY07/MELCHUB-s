@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# impeccable — local/machine-specific runtime state, not project config
+.impeccable/live/roots.json
+.impeccable/live/sessions/
+.impeccable/hook.cache.json

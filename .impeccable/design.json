@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-18T02:00:00Z",
+  "title": "Design System: MELCHUB",
+  "extensions": {
+    "colorMeta": {
+      "trust-violet": { "role": "primary", "displayName": "Deep Trust Violet", "canonical": "oklch(0.49 0.24 264)", "tonalRamp": ["oklch(0.20 0.10 264)", "oklch(0.30 0.16 264)", "oklch(0.40 0.20 264)", "oklch(0.49 0.24 264)", "oklch(0.58 0.24 264)", "oklch(0.68 0.22 264)", "oklch(0.78 0.16 264)", "oklch(0.90 0.08 264)"] },
+      "neutral-bg": { "role": "neutral", "displayName": "Paper White", "canonical": "oklch(0.99 0.003 264)", "tonalRamp": ["oklch(0.16 0.015 264)", "oklch(0.28 0.015 264)", "oklch(0.42 0.015 264)", "oklch(0.58 0.01 264)", "oklch(0.72 0.008 264)", "oklch(0.85 0.005 264)", "oklch(0.93 0.004 264)", "oklch(0.99 0.003 264)"] },
+      "neutral-fg": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(0.16 0.03 264)" },
+      "surface-card": { "role": "neutral", "displayName": "Card White", "canonical": "oklch(1 0 0)" },
+      "neutral-secondary": { "role": "neutral", "displayName": "Quiet Tint", "canonical": "oklch(0.96 0.01 264)" },
+      "neutral-muted-fg": { "role": "neutral", "displayName": "Faded Ink", "canonical": "oklch(0.48 0.02 264)" },
+      "accent-tint": { "role": "neutral", "displayName": "Accent Tint", "canonical": "oklch(0.91 0.06 264)" },
+      "muted-alarm-red": { "role": "destructive", "displayName": "Muted Alarm Red", "canonical": "oklch(0.577 0.245 27.325)" },
+      "amber-caution": { "role": "warning", "displayName": "Amber Caution", "canonical": "oklch(0.666 0.179 58)" },
+      "settled-green": { "role": "success", "displayName": "Settled Green", "canonical": "oklch(0.6 0.145 163)" },
+      "border-hairline": { "role": "neutral", "displayName": "Hairline", "canonical": "oklch(0.91 0.01 264)" }
+    },
+    "typographyMeta": {
+      "body": { "displayName": "Body", "purpose": "All form labels, table content, descriptions, button labels." },
+      "heading": { "displayName": "Heading", "purpose": "Page and modal titles. Same face as body, distinguished by weight/size only." },
+      "mono": { "displayName": "Mono", "purpose": "Loaded via CSS variable; not currently applied to any visible component." }
+    },
+    "shadows": [
+      { "name": "ambient-lift", "value": "0 1px 2px -1px var(--shadow-color), 0 8px 20px -10px var(--shadow-color)", "purpose": "Default button and small-surface resting shadow, tinted by the primary hue." },
+      { "name": "ambient-lift-card", "value": "0 1px 2px -1px var(--shadow-color), 0 12px 28px -14px var(--shadow-color)", "purpose": "Card/container resting shadow, same formula at a wider spread." }
+    ],
+    "breakpoints": [
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default call-to-action button: trust-violet fill, ambient shadow, 1px press-down on active.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Log in</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; justify-content: center; height: 2rem; padding: 0 0.625rem; border-radius: 0.75rem; font-size: 0.875rem; font-weight: 500; font-family: Geist, ui-sans-serif, system-ui; border: 1px solid transparent; transition: all 0.15s ease; } .ds-btn:active { transform: translateY(1px); } .ds-btn-primary { background: oklch(0.49 0.24 264); color: oklch(0.99 0 0); box-shadow: 0 1px 2px -1px oklch(0.49 0.24 264 / 0.16), 0 8px 20px -10px oklch(0.49 0.24 264 / 0.16); } .ds-btn-primary:hover { background: color-mix(in oklch, oklch(0.49 0.24 264), black 14%); } .ds-btn-primary:focus-visible { outline: none; border-color: oklch(0.55 0.23 264); box-shadow: 0 0 0 3px oklch(0.55 0.23 264 / 0.5); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Delete/destructive action: tinted red background, never a solid fill (Tinted, Never Solid Rule).",
+      "html": "<button class=\"ds-btn ds-btn-destructive\">Delete</button>",
+      "css": ".ds-btn-destructive { background: oklch(0.577 0.245 27.325 / 0.1); color: oklch(0.577 0.245 27.325); } .ds-btn-destructive:hover { background: oklch(0.577 0.245 27.325 / 0.2); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Primary content-grouping surface used for stat cards, table wrappers, and form containers.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><div class=\"ds-card-title\">Active Loans</div></div><div class=\"ds-card-content\">42</div></div>",
+      "css": ".ds-card { background: oklch(1 0 0); color: oklch(0.16 0.03 264); border-radius: 1.05rem; box-shadow: 0 1px 2px -1px oklch(0.49 0.24 264 / 0.16), 0 12px 28px -14px oklch(0.49 0.24 264 / 0.16); box-shadow, outline: 1px solid oklch(0.16 0.03 264 / 0.1); padding: 1rem; font-family: Geist, ui-sans-serif, system-ui; } .ds-card-title { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 0.5rem; } .ds-card-content { font-size: 0.875rem; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text input with hairline border and a generous soft focus ring.",
+      "html": "<input class=\"ds-input\" placeholder=\"Username\" />",
+      "css": ".ds-input { height: 2rem; width: 100%; border-radius: 0.75rem; border: 1px solid oklch(0.91 0.01 264); background: transparent; padding: 0.25rem 0.625rem; font-size: 0.875rem; font-family: Geist, ui-sans-serif, system-ui; color: oklch(0.16 0.03 264); outline: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; } .ds-input::placeholder { color: oklch(0.48 0.02 264); } .ds-input:focus-visible { border-color: oklch(0.55 0.23 264); box-shadow: 0 0 0 3px oklch(0.55 0.23 264 / 0.5); }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-success",
+      "description": "Compact status indicator; every variant is a tinted background with matching full-saturation text, never a solid fill.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Paid</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 0.6rem; padding: 0.125rem 0.5rem; font-size: 0.75rem; font-weight: 500; font-family: Geist, ui-sans-serif, system-ui; white-space: nowrap; } .ds-badge-success { background: oklch(0.6 0.145 163 / 0.15); color: oklch(0.6 0.145 163); } .ds-badge-destructive { background: oklch(0.577 0.245 27.325 / 0.1); color: oklch(0.577 0.245 27.325); } .ds-badge-warning { background: oklch(0.666 0.179 58 / 0.15); color: oklch(0.666 0.179 58); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calm Ledger",
+    "overview": "MELCHUB's current visual system reads as a quiet, competent back-office tool: a single cool blue-violet accent, near-white and near-black neutrals, and status colors that are always tinted rather than shouted. Nothing here is trying to be memorable — it's trying to be trustworthy and legible for someone checking a debt balance or logging a payment. The system is one typeface (Geist) doing double duty as both heading and body face, differentiated only by weight and size, which reinforces the \"one voice, no drama\" character. Depth is handled the same way everywhere: a soft, primary-hue-tinted ambient shadow lifts cards and buttons slightly off the background, paired with a faint 10%-opacity ring border — never a hard drop shadow, never a bevel. Corners are consistently, moderately rounded, and interactive elements give one small tactile cue — buttons nudge down 1px on press.",
+    "keyCharacteristics": [
+      "One accent hue (blue-violet, ~264° OKLCH) carries all primary actions, links, focus rings, and active nav states.",
+      "One typeface, two weights: Geist Sans for everything; Geist Mono is loaded but unused in the UI.",
+      "Status is always a tinted background + colored text/icon, never a solid saturated fill.",
+      "Depth is ambient and uniform: the same two-layer soft shadow formula on every card and default button."
+    ],
+    "rules": [
+      { "name": "The Tinted, Never Solid Rule", "body": "Status and destructive signaling always uses a low-opacity tinted background with full-saturation text/icon color on top — never a solid saturated fill.", "section": "colors" },
+      { "name": "The One Accent Rule", "body": "Color outside the neutral scale and the three status hues appears in exactly one place: the trust-violet primary.", "section": "colors" },
+      { "name": "The One Typeface Rule", "body": "Geist Sans serves both headings and body copy. Hierarchy is built entirely from weight and size, never from a second typeface.", "section": "typography" },
+      { "name": "The Ambient Glow Rule", "body": "Shadows are tinted by the primary hue (light mode) or pure black (dark mode), always soft and diffuse, never a hard offset shadow implying a light-source direction.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep every status/destructive signal in the tinted-background-plus-colored-text form.",
+      "Do derive every corner radius from the single --radius primitive via its existing multiplier scale.",
+      "Do keep the ambient, hue-tinted shadow as the only depth cue."
+    ],
+    "donts": [
+      "Don't introduce a second accent color for a new feature without treating it as a deliberate identity decision.",
+      "Don't add a display/serif typeface for emphasis.",
+      "Don't give any button, badge, or alert a hard-edged or solid-saturated destructive treatment."
+    ]
+  }
+}
