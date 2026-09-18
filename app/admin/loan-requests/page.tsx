@@ -13,7 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { formatDate } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import type { LoanRequest, LoanRequestStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanRequestStatus, "muted" | "success" | "destructive"> = {
@@ -141,6 +141,7 @@ export default function AdminLoanRequestsPage() {
               <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">Borrower</th>
+                  <th className="px-3 py-2 font-medium">Requested</th>
                   <th className="px-3 py-2 font-medium">Plan</th>
                   <th className="px-3 py-2 font-medium">Message</th>
                   <th className="px-3 py-2 font-medium">Submitted</th>
@@ -159,6 +160,14 @@ export default function AdminLoanRequestsPage() {
                           <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
                         </div>
                       </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{formatCurrency(request.requested_amount)}</div>
+                      {request.loan?.available_credit != null && (
+                        <div className="text-xs text-muted-foreground">
+                          {formatCurrency(request.loan.available_credit)} available
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2">{PLAN_LABEL[request.plan]}</td>
                     <td className="max-w-[240px] px-3 py-2 text-muted-foreground">{request.message || "—"}</td>
@@ -226,10 +235,22 @@ export default function AdminLoanRequestsPage() {
                     <Badge variant={STATUS_BADGE[request.status]}>{request.status}</Badge>
                   </div>
 
-                  <div className="text-sm">
-                    <div className="text-xs text-muted-foreground">Plan</div>
-                    <div>{PLAN_LABEL[request.plan]}</div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Requested</div>
+                      <div className="font-medium">{formatCurrency(request.requested_amount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Plan</div>
+                      <div>{PLAN_LABEL[request.plan]}</div>
+                    </div>
                   </div>
+
+                  {request.loan?.available_credit != null && (
+                    <div className="text-xs text-muted-foreground">
+                      {formatCurrency(request.loan.available_credit)} available
+                    </div>
+                  )}
 
                   {request.message && (
                     <div className="text-sm">

@@ -7,6 +7,7 @@ import { Wallet, TrendingUp, HandCoins, PiggyBank, FilePlus2, CalendarRange } fr
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
+import { LOGIN_PATH } from "@/lib/auth-context";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { LoanRequestModal } from "@/components/loan-request-modal";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ export default function PortalHomePage() {
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("borrower_token");
-          router.push("/portal/login");
+          router.push(LOGIN_PATH);
           return;
         }
         setError("Couldn't load your loan history.");
@@ -93,7 +94,8 @@ export default function PortalHomePage() {
       {latestRequest?.status === "pending" && (
         <Alert>
           <AlertDescription>
-            Your loan request ({latestRequest.plan === "3_day" ? "3-day" : "weekly"} plan) is pending review.
+            Your request for {formatCurrency(latestRequest.requested_amount)} (
+            {latestRequest.plan === "3_day" ? "3-day" : "weekly"} plan) is pending review.
           </AlertDescription>
         </Alert>
       )}
@@ -157,6 +159,7 @@ export default function PortalHomePage() {
           setLatestRequest(request);
           setRequestModalOpen(false);
         }}
+        availableCredit={loan.available_credit}
       />
     </div>
   );

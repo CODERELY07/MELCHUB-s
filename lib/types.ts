@@ -24,11 +24,13 @@ export interface Loan {
   phone: string | null;
   location: string | null;
   total_loan: string;
+  credit_limit: string | null;
   total_paid: string;
   interest_rate: string;
   penalty_amount: string;
   interest_amount: number;
   balance: number;
+  available_credit: number | null;
   is_overdue: boolean;
   status: LoanStatus;
   notes: string | null;
@@ -112,6 +114,7 @@ export interface LoanRequest {
   id: number;
   loan_id: number;
   plan: LoanRequestPlan;
+  requested_amount: string;
   message: string | null;
   rules_acknowledged_at: string;
   status: LoanRequestStatus;
@@ -120,7 +123,7 @@ export interface LoanRequest {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
-  loan?: Pick<Loan, "id" | "loan_number" | "name" | "phone" | "status">;
+  loan?: Pick<Loan, "id" | "loan_number" | "name" | "phone" | "status" | "total_loan" | "credit_limit" | "available_credit">;
   reviewer?: { id: number; name: string } | null;
 }
 
@@ -132,6 +135,7 @@ export interface LoanFormValues {
   phone: string;
   location: string;
   total_loan: string;
+  credit_limit: string;
   total_paid: string;
   interest_rate: string;
   status: LoanStatus;

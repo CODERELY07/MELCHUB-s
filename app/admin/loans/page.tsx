@@ -19,7 +19,7 @@ import {
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
-import { ADMIN_LOGIN_PATH } from "@/lib/auth-context";
+import { LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +61,7 @@ const EMPTY_FORM: LoanFormValues = {
   phone: "",
   location: "",
   total_loan: "",
+  credit_limit: "",
   total_paid: "0",
   interest_rate: "0",
   status: "pending",
@@ -117,7 +118,7 @@ export default function AdminLoansPage() {
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("token");
-          router.push(ADMIN_LOGIN_PATH);
+          router.push(LOGIN_PATH);
           return;
         }
         setError("Couldn't load loans.");
@@ -149,6 +150,7 @@ export default function AdminLoansPage() {
       phone: loan.phone ?? "",
       location: loan.location ?? "",
       total_loan: loan.total_loan,
+      credit_limit: loan.credit_limit ?? "",
       total_paid: loan.total_paid,
       interest_rate: loan.interest_rate,
       status: loan.status,
@@ -714,6 +716,21 @@ export default function AdminLoansPage() {
                 required
                 value={form.total_loan}
                 onChange={(e) => setForm({ ...form, total_loan: e.target.value })}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="credit_limit">
+                Credit limit <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="credit_limit"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="How much this client may borrow in total"
+                value={form.credit_limit}
+                onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
               />
             </div>
 
