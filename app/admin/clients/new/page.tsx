@@ -82,11 +82,16 @@ export default function NewClientPage() {
 
       <Card className="max-w-2xl">
         <form onSubmit={handleSubmit}>
-          <CardHeader>
-            <CardTitle as="h2" className="text-base">Client details</CardTitle>
-            <CardDescription>
-              This creates their login for the borrower portal.
-            </CardDescription>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
+              <UserPlus className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">Client details</CardTitle>
+              <CardDescription>
+                This creates their login for the borrower portal.
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {formError && (

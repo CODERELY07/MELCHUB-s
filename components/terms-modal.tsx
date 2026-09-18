@@ -85,9 +85,10 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
       // Acceptance is mandatory — there's no other way out of this loan's
       // onboarding, so Escape doesn't get to be a silent bypass.
       onCancel={(e) => e.preventDefault()}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60 open:animate-in open:fade-in-0 open:zoom-in-95"
+      className="inset-x-0 top-auto bottom-0 m-0 w-full max-w-none rounded-t-2xl rounded-b-none border-t border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60 open:animate-in open:fade-in-0 open:slide-in-from-bottom open:duration-300 sm:inset-0 sm:m-auto sm:w-[calc(100%-2rem)] sm:max-w-lg sm:rounded-xl sm:border-t-0 sm:border sm:open:slide-in-from-bottom-0 sm:open:zoom-in-95 sm:open:duration-150"
     >
-      <form onSubmit={handleSubmit} className="flex max-h-[85vh] flex-col">
+      <form onSubmit={handleSubmit} className="flex max-h-[90vh] flex-col sm:max-h-[85vh]">
+        <div className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-muted sm:hidden" aria-hidden="true" />
         <div className="border-b border-border p-6 pb-4">
           <h2 className="text-lg font-semibold">Terms & Conditions</h2>
           <p className="text-sm text-muted-foreground">
@@ -101,7 +102,7 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
           </pre>
         </div>
 
-        <div className="flex flex-col gap-4 border-t border-border p-6 pt-4">
+        <div className="flex flex-col gap-4 border-t border-border p-6 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:pb-4">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>

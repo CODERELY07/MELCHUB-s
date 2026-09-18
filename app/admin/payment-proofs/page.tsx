@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -146,8 +147,13 @@ export default function AdminPaymentProofsPage() {
                 {proofs.map((proof) => (
                   <tr key={proof.id}>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{proof.loan?.name}</div>
-                      <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={proof.loan?.name ?? "?"} />
+                        <div>
+                          <div className="font-medium">{proof.loan?.name}</div>
+                          <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-2">{formatCurrency(proof.amount)}</td>
                     <td className="px-3 py-2">{formatDate(proof.created_at)}</td>
@@ -204,9 +210,12 @@ export default function AdminPaymentProofsPage() {
               <Card key={proof.id}>
                 <CardContent className="flex flex-col gap-3 pt-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium">{proof.loan?.name}</div>
-                      <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={proof.loan?.name ?? "?"} />
+                      <div>
+                        <div className="font-medium">{proof.loan?.name}</div>
+                        <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                      </div>
                     </div>
                     <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
                   </div>

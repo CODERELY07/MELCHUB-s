@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { Download, Loader2 } from "lucide-react";
+import { AlertCircle, Banknote, ChartPie, Download, HandCoins, Loader2, TrendingUp, TriangleAlert } from "lucide-react";
 
 import api from "@/lib/axios";
 import { ADMIN_LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BarChart } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
@@ -82,38 +83,23 @@ export default function AdminAnalyticsPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardDescription>Total loaned out</CardDescription>
-            <CardTitle className="text-2xl">{formatCurrency(totals.total_loaned)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Total collected</CardDescription>
-            <CardTitle className="text-2xl">{formatCurrency(totals.total_collected)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Outstanding balance</CardDescription>
-            <CardTitle className="text-2xl">{formatCurrency(totals.total_outstanding)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>Overdue loans</CardDescription>
-            <CardTitle className="text-2xl">{totals.overdue_count}</CardTitle>
-          </CardHeader>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard label="Total loaned out" value={formatCurrency(totals.total_loaned)} icon={HandCoins} tone={2} />
+        <StatCard label="Total collected" value={formatCurrency(totals.total_collected)} icon={Banknote} tone={3} />
+        <StatCard label="Outstanding balance" value={formatCurrency(totals.total_outstanding)} icon={AlertCircle} tone={4} />
+        <StatCard label="Overdue loans" value={String(totals.overdue_count)} icon={TriangleAlert} tone={5} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle as="h2" className="text-base">Loans created per month</CardTitle>
-            <CardDescription>Count of new loans, last 12 months</CardDescription>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
+              <TrendingUp className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">Loans created per month</CardTitle>
+              <CardDescription>Count of new loans, last 12 months</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             <BarChart
@@ -124,9 +110,14 @@ export default function AdminAnalyticsPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle as="h2" className="text-base">Collections per month</CardTitle>
-            <CardDescription>Total payments received, last 12 months</CardDescription>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/15 text-success-ink">
+              <Banknote className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">Collections per month</CardTitle>
+              <CardDescription>Total payments received, last 12 months</CardDescription>
+            </div>
           </CardHeader>
           <CardContent>
             <BarChart
@@ -140,9 +131,14 @@ export default function AdminAnalyticsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle as="h2" className="text-base">Loan status breakdown</CardTitle>
-          <CardDescription>{totals.loan_count} loans total</CardDescription>
+        <CardHeader className="!flex items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
+            <ChartPie className="size-4.5" />
+          </span>
+          <div>
+            <CardTitle as="h2" className="text-base">Loan status breakdown</CardTitle>
+            <CardDescription>{totals.loan_count} loans total</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <DonutChart

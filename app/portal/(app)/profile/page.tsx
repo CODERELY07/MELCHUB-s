@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Lock, UserRound } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import borrowerApi from "@/lib/borrower-axios";
@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar } from "@/components/ui/avatar";
 
 function extractErrorMessage(err: unknown, fallback: string): string {
   if (!isAxiosError(err)) return fallback;
@@ -87,18 +88,26 @@ export default function PortalProfilePage() {
 
   return (
     <div className="flex max-w-lg flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-        <p className="text-sm text-muted-foreground">
-          Update your contact details or change your password.
-        </p>
+      <div className="flex items-center gap-3">
+        <Avatar name={loan.name} className="size-12 text-base" />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
+          <p className="text-sm text-muted-foreground">
+            Update your contact details or change your password.
+          </p>
+        </div>
       </div>
 
       <Card>
         <form onSubmit={handleProfileSubmit}>
-          <CardHeader>
-            <CardTitle as="h2" className="text-base">Your details</CardTitle>
-            <CardDescription>Loan {loan.loan_number}</CardDescription>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
+              <UserRound className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">Your details</CardTitle>
+              <CardDescription>Loan {loan.loan_number}</CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {profileError && (
@@ -168,7 +177,10 @@ export default function PortalProfilePage() {
 
       <Card>
         <form onSubmit={handlePasswordSubmit}>
-          <CardHeader>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
+              <Lock className="size-4.5" />
+            </span>
             <CardTitle as="h2" className="text-base">Change password</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

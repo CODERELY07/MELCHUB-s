@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { Wallet, TrendingUp, HandCoins, PiggyBank, FilePlus2 } from "lucide-react";
+import { Wallet, TrendingUp, HandCoins, PiggyBank, FilePlus2, CalendarRange } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
@@ -11,6 +11,8 @@ import { LoanHistoryTable } from "@/components/loan-history-table";
 import { LoanRequestModal } from "@/components/loan-request-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -67,11 +69,14 @@ export default function PortalHomePage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Welcome, {loan.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            Loan {loan.loan_number} · <Badge variant={STATUS_BADGE[loan.status]}>{loan.is_overdue ? "overdue" : loan.status}</Badge>
-          </p>
+        <div className="flex items-center gap-3">
+          <Avatar name={loan.name} className="size-12 text-base sm:size-14 sm:text-lg" />
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Welcome, {loan.name}</h1>
+            <p className="text-sm text-muted-foreground">
+              Loan {loan.loan_number} · <Badge variant={STATUS_BADGE[loan.status]}>{loan.is_overdue ? "overdue" : loan.status}</Badge>
+            </p>
+          </div>
         </div>
         <Button
           variant="outline"
@@ -100,59 +105,29 @@ export default function PortalHomePage() {
         </Alert>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardDescription>Principal</CardDescription>
-              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-1/15 text-chart-1">
-                <Wallet className="size-4" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">{formatCurrency(loan.total_loan)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardDescription>Interest so far ({loan.interest_rate}%/day)</CardDescription>
-              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-4/15 text-chart-4">
-                <TrendingUp className="size-4" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">{formatCurrency(loan.interest_amount)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardDescription>Total paid</CardDescription>
-              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-3/15 text-chart-3">
-                <HandCoins className="size-4" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">{formatCurrency(loan.total_paid)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card className="overflow-hidden">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardDescription>Balance remaining</CardDescription>
-              <div className="flex size-8 items-center justify-center rounded-lg bg-chart-2/15 text-chart-2">
-                <PiggyBank className="size-4" />
-              </div>
-            </div>
-            <CardTitle className="text-2xl">{formatCurrency(loan.balance)}</CardTitle>
-          </CardHeader>
-        </Card>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard label="Principal" value={formatCurrency(loan.total_loan)} icon={Wallet} tone={1} />
+        <StatCard
+          label={`Interest so far (${loan.interest_rate}%/day)`}
+          value={formatCurrency(loan.interest_amount)}
+          icon={TrendingUp}
+          tone={4}
+        />
+        <StatCard label="Total paid" value={formatCurrency(loan.total_paid)} icon={HandCoins} tone={3} />
+        <StatCard label="Balance remaining" value={formatCurrency(loan.balance)} icon={PiggyBank} tone={2} />
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle as="h2" className="text-base">Loan term</CardTitle>
-          <CardDescription>
-            {formatDate(loan.start_date)} &ndash; {formatDate(loan.due_date)}
-          </CardDescription>
+        <CardHeader className="!flex items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
+            <CalendarRange className="size-4.5" />
+          </span>
+          <div>
+            <CardTitle as="h2" className="text-base">Loan term</CardTitle>
+            <CardDescription>
+              {formatDate(loan.start_date)} &ndash; {formatDate(loan.due_date)}
+            </CardDescription>
+          </div>
         </CardHeader>
       </Card>
 

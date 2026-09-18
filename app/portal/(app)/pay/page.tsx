@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isAxiosError } from "axios";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, ReceiptText, Upload, Wallet } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
@@ -99,14 +99,19 @@ export default function PortalPayPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle as="h2" className="text-base">GCash payment details</CardTitle>
-          <CardDescription>Balance due: {formatCurrency(loan.balance)}</CardDescription>
+        <CardHeader className="!flex items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-data-2">
+            <Wallet className="size-4.5" />
+          </span>
+          <div>
+            <CardTitle as="h2" className="text-base">GCash payment details</CardTitle>
+            <CardDescription>Balance due: {formatCurrency(loan.balance)}</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           {settings ? (
             settings.gcash_number ? (
-              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+              <div className="rounded-lg bg-chart-2/10 p-3 text-sm ring-1 ring-chart-2/15">
                 <div className="font-medium">{settings.gcash_name}</div>
                 <div className="font-mono text-lg tracking-wide">{settings.gcash_number}</div>
               </div>
@@ -123,7 +128,10 @@ export default function PortalPayPage() {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <CardHeader>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-3/15 text-data-3">
+              <Upload className="size-4.5" />
+            </span>
             <CardTitle as="h2" className="text-base">Submit payment proof</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -188,14 +196,19 @@ export default function PortalPayPage() {
             {proofs.map((proof) => (
               <Card key={proof.id}>
                 <CardContent className="flex items-center justify-between gap-3 pt-4">
-                  <div>
-                    <div className="font-medium">{formatCurrency(proof.amount)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Submitted {formatDate(proof.created_at)}
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
+                      <ReceiptText className="size-4" />
+                    </span>
+                    <div>
+                      <div className="font-medium">{formatCurrency(proof.amount)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Submitted {formatDate(proof.created_at)}
+                      </div>
+                      {proof.status === "rejected" && proof.note && (
+                        <div className="mt-1 text-xs text-destructive">{proof.note}</div>
+                      )}
                     </div>
-                    {proof.status === "rejected" && proof.note && (
-                      <div className="mt-1 text-xs text-destructive">{proof.note}</div>
-                    )}
                   </div>
                   <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
                 </CardContent>

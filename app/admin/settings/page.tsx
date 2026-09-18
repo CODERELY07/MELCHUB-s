@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { isAxiosError } from "axios";
-import { Loader2, Save } from "lucide-react";
+import { Bell, Loader2, Save, Wallet } from "lucide-react";
 
 import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
@@ -89,9 +89,14 @@ export default function AdminSettingsPage() {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <CardHeader>
-            <CardTitle as="h2" className="text-base">GCash payment account</CardTitle>
-            <CardDescription>Shown to every borrower, everywhere payment is requested.</CardDescription>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-data-2">
+              <Wallet className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">GCash payment account</CardTitle>
+              <CardDescription>Shown to every borrower, everywhere payment is requested.</CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -141,11 +146,16 @@ export default function AdminSettingsPage() {
 
       <Card>
         <form onSubmit={handleNotifySubmit}>
-          <CardHeader>
-            <CardTitle as="h2" className="text-base">Admin notifications</CardTitle>
-            <CardDescription>
-              Get a text the moment a borrower submits a new payment proof to review.
-            </CardDescription>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
+              <Bell className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">Admin notifications</CardTitle>
+              <CardDescription>
+                Get a text the moment a borrower submits a new payment proof to review.
+              </CardDescription>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {notifyError && (

@@ -70,7 +70,7 @@ export default function LoginPage() {
       <ThemeToggle iconOnly className="absolute top-4 right-4" />
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary font-heading text-lg font-bold text-primary-foreground shadow-md">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary),var(--chart-5)_30%)] font-heading text-lg font-bold text-primary-foreground shadow-md">
             M
           </div>
           <CardTitle as="h1" className="text-3xl font-bold tracking-tight">Welcome back</CardTitle>

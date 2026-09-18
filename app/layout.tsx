@@ -32,6 +32,11 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#2f5cc9" },
     { media: "(prefers-color-scheme: dark)", color: "#0f0f16" },
   ],
+  // The installed PWA draws edge-to-edge on notched/rounded-corner phones —
+  // viewportFit "cover" is what lets env(safe-area-inset-*) resolve to real
+  // values instead of 0, which the app bar/bottom tab bar/sheets below rely
+  // on to stay clear of the notch and home indicator.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

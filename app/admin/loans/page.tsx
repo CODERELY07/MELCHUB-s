@@ -27,6 +27,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoanHistoryTable } from "@/components/loan-history-table";
@@ -424,9 +425,14 @@ export default function AdminLoansPage() {
                   <tr key={loan.id}>
                     <td className="px-3 py-2 font-mono text-xs">{loan.loan_number}</td>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{loan.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        @{loan.username} {loan.phone ? `· ${loan.phone}` : ""}
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={loan.name} />
+                        <div>
+                          <div className="font-medium">{loan.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            @{loan.username} {loan.phone ? `· ${loan.phone}` : ""}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-3 py-2">{formatCurrency(loan.total_loan)}</td>
@@ -515,11 +521,14 @@ export default function AdminLoansPage() {
               <Card key={loan.id}>
                 <CardContent className="flex flex-col gap-3 pt-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium">{loan.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {loan.loan_number} · @{loan.username}
-                        {loan.phone ? ` · ${loan.phone}` : ""}
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={loan.name} />
+                      <div>
+                        <div className="font-medium">{loan.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {loan.loan_number} · @{loan.username}
+                          {loan.phone ? ` · ${loan.phone}` : ""}
+                        </div>
                       </div>
                     </div>
                     <Badge variant={STATUS_BADGE[loan.status]}>

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatDate } from "@/lib/format";
@@ -151,8 +152,13 @@ export default function AdminLoanRequestsPage() {
                 {requests.map((request) => (
                   <tr key={request.id}>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{request.loan?.name}</div>
-                      <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={request.loan?.name ?? "?"} />
+                        <div>
+                          <div className="font-medium">{request.loan?.name}</div>
+                          <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-3 py-2">{PLAN_LABEL[request.plan]}</td>
                     <td className="max-w-[240px] px-3 py-2 text-muted-foreground">{request.message || "—"}</td>
@@ -210,9 +216,12 @@ export default function AdminLoanRequestsPage() {
               <Card key={request.id}>
                 <CardContent className="flex flex-col gap-3 pt-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-medium">{request.loan?.name}</div>
-                      <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar name={request.loan?.name ?? "?"} />
+                      <div>
+                        <div className="font-medium">{request.loan?.name}</div>
+                        <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
+                      </div>
                     </div>
                     <Badge variant={STATUS_BADGE[request.status]}>{request.status}</Badge>
                   </div>

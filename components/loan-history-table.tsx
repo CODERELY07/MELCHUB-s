@@ -50,7 +50,7 @@ export function LoanHistoryTable({ entries }: { entries: LoanHistoryEntry[] }) {
               <td
                 className={cn(
                   "px-3 py-2 text-right font-medium",
-                  entry.type === "payment" ? "text-success" : "text-muted-foreground"
+                  entry.type === "payment" ? "text-success-ink" : "text-muted-foreground"
                 )}
               >
                 {entry.type === "payment" ? "-" : "+"}

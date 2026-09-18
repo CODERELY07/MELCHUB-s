@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Banknote, HandCoins, TriangleAlert, Users } from "lucide-react";
+import { AlertCircle, Banknote, HandCoins, Landmark, TriangleAlert, Users } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { StatCard, type StatTone } from "@/components/ui/stat-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/format";
@@ -48,7 +49,7 @@ export default function AdminDashboardPage() {
 
   if (!loans) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-24 w-full rounded-xl" />
         ))}
@@ -62,30 +63,30 @@ export default function AdminDashboardPage() {
   const overdueCount = loans.filter((l) => l.is_overdue).length;
   const activeCount = loans.filter((l) => l.status === "active").length;
 
-  const stats = [
+  const stats: { label: string; value: string; icon: typeof Users; tone: StatTone }[] = [
     {
       label: "Total borrowers",
       value: String(loans.length),
       icon: Users,
-      color: "bg-chart-1/15 text-chart-1",
+      tone: 1,
     },
     {
       label: "Total loaned out",
       value: formatCurrency(totalLoaned),
       icon: HandCoins,
-      color: "bg-chart-2/15 text-chart-2",
+      tone: 2,
     },
     {
       label: "Total collected",
       value: formatCurrency(totalPaid),
       icon: Banknote,
-      color: "bg-chart-3/15 text-chart-3",
+      tone: 3,
     },
     {
       label: "Outstanding balance",
       value: formatCurrency(totalOutstanding),
       icon: AlertCircle,
-      color: "bg-chart-4/15 text-chart-4",
+      tone: 4,
     },
   ];
 
@@ -98,19 +99,9 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.label} className="overflow-hidden">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardDescription>{stat.label}</CardDescription>
-                <div className={`flex size-8 items-center justify-center rounded-lg ${stat.color}`}>
-                  <stat.icon className="size-4" />
-                </div>
-              </div>
-              <CardTitle className="text-2xl">{stat.value}</CardTitle>
-            </CardHeader>
-          </Card>
+          <StatCard key={stat.label} label={stat.label} value={stat.value} icon={stat.icon} tone={stat.tone} />
         ))}
       </div>
 
@@ -125,9 +116,14 @@ export default function AdminDashboardPage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle as="h2">Active loans</CardTitle>
-          <CardDescription>{activeCount} currently active</CardDescription>
+        <CardHeader className="!flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-success/15 text-success-ink">
+            <Landmark className="size-5" />
+          </span>
+          <div>
+            <CardTitle as="h2">Active loans</CardTitle>
+            <CardDescription>{activeCount} currently active</CardDescription>
+          </div>
         </CardHeader>
       </Card>
     </div>
