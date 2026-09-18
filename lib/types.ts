@@ -57,6 +57,20 @@ export interface PaymentSettings {
   gcash_number: string;
 }
 
+export interface NotificationSettings {
+  admin_notify_phone: string;
+}
+
+export interface SmsLogEntry {
+  id: number;
+  loan_id: number | null;
+  phone: string;
+  message: string;
+  success: boolean;
+  error: string | null;
+  created_at: string;
+}
+
 export type PaymentProofStatus = "pending" | "approved" | "rejected";
 
 export interface PaymentProof {

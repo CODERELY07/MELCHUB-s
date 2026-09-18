@@ -17,7 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type { PaymentSettings } from "@/lib/types";
+import type { NotificationSettings, PaymentSettings } from "@/lib/types";
 
 export default function AdminSettingsPage() {
   const [form, setForm] = useState<PaymentSettings>({ gcash_name: "", gcash_number: "" });
@@ -26,11 +26,22 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [notifyForm, setNotifyForm] = useState<NotificationSettings>({ admin_notify_phone: "" });
+  const [notifyLoading, setNotifyLoading] = useState(true);
+  const [notifySaving, setNotifySaving] = useState(false);
+  const [notifyError, setNotifyError] = useState("");
+  const [notifySuccess, setNotifySuccess] = useState("");
+
   useEffect(() => {
     api
       .get("/settings/payment")
       .then((res) => setForm(res.data))
       .finally(() => setLoading(false));
+
+    api
+      .get("/settings/notifications")
+      .then((res) => setNotifyForm(res.data))
+      .finally(() => setNotifyLoading(false));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,10 +61,27 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleNotifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNotifyError("");
+    setNotifySuccess("");
+    setNotifySaving(true);
+
+    try {
+      const res = await api.put("/settings/notifications", notifyForm);
+      setNotifyForm(res.data);
+      setNotifySuccess("Saved.");
+    } catch (err: unknown) {
+      setNotifyError((isAxiosError(err) && err.response?.data?.message) || "Couldn't save settings.");
+    } finally {
+      setNotifySaving(false);
+    }
+  };
+
   return (
     <div className="flex max-w-lg flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
           The GCash details shown to borrowers on their dashboard and in SMS reminders.
         </p>
@@ -62,7 +90,7 @@ export default function AdminSettingsPage() {
       <Card>
         <form onSubmit={handleSubmit}>
           <CardHeader>
-            <CardTitle className="text-base">GCash payment account</CardTitle>
+            <CardTitle as="h2" className="text-base">GCash payment account</CardTitle>
             <CardDescription>Shown to every borrower, everywhere payment is requested.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -72,7 +100,7 @@ export default function AdminSettingsPage() {
               </Alert>
             )}
             {success && (
-              <Alert>
+              <Alert variant="success">
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}
@@ -105,6 +133,54 @@ export default function AdminSettingsPage() {
           <CardFooter>
             <Button type="submit" disabled={saving || loading}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Save changes
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+
+      <Card>
+        <form onSubmit={handleNotifySubmit}>
+          <CardHeader>
+            <CardTitle as="h2" className="text-base">Admin notifications</CardTitle>
+            <CardDescription>
+              Get a text the moment a borrower submits a new payment proof to review.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {notifyError && (
+              <Alert variant="destructive">
+                <AlertDescription>{notifyError}</AlertDescription>
+              </Alert>
+            )}
+            {notifySuccess && (
+              <Alert variant="success">
+                <AlertDescription>{notifySuccess}</AlertDescription>
+              </Alert>
+            )}
+
+            {notifyLoading ? (
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            ) : (
+              <div className="space-y-1.5">
+                <Label htmlFor="admin_notify_phone">
+                  Notification phone <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="admin_notify_phone"
+                  placeholder="e.g. 09171234567"
+                  value={notifyForm.admin_notify_phone}
+                  onChange={(e) => setNotifyForm({ admin_notify_phone: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to turn this alert off.
+                </p>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" disabled={notifySaving || notifyLoading}>
+              {notifySaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Save changes
             </Button>
           </CardFooter>

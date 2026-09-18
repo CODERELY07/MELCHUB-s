@@ -2,7 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Banknote, Bell, BellRing, History, Loader2, MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Banknote,
+  Bell,
+  BellRing,
+  Download,
+  History,
+  Loader2,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -13,11 +26,13 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
-import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus } from "@/lib/types";
+import { downloadLoansCsv } from "@/lib/loans-csv";
+import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, SmsLogEntry } from "@/lib/types";
 
 const STATUS_OPTIONS: LoanStatus[] = [
   "pending",
@@ -56,6 +71,8 @@ const EMPTY_FORM: LoanFormValues = {
 export default function AdminLoansPage() {
   const [loans, setLoans] = useState<Loan[] | null>(null);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<LoanStatus | "">("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [form, setForm] = useState<LoanFormValues>(EMPTY_FORM);
@@ -67,6 +84,8 @@ export default function AdminLoansPage() {
   const [historyLoan, setHistoryLoan] = useState<Loan | null>(null);
   const [historyEntries, setHistoryEntries] = useState<LoanHistoryEntry[] | null>(null);
   const [historyError, setHistoryError] = useState("");
+  const [smsLog, setSmsLog] = useState<SmsLogEntry[] | null>(null);
+  const [smsLogError, setSmsLogError] = useState("");
 
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [paymentLoan, setPaymentLoan] = useState<Loan | null>(null);
@@ -89,7 +108,7 @@ export default function AdminLoansPage() {
 
   const loadLoans = useCallback(() => {
     api
-      .get("/loans")
+      .get("/loans", { params: { search: search || undefined, status: statusFilter || undefined } })
       .then((res) => {
         setLoans(res.data);
         setError("");
@@ -102,10 +121,14 @@ export default function AdminLoansPage() {
         }
         setError("Couldn't load loans.");
       });
-  }, [router]);
+  }, [router, search, statusFilter]);
 
   useEffect(() => {
-    loadLoans();
+    // Debounced so typing in the search box doesn't fire a request per
+    // keystroke — status-filter changes are infrequent clicks, so the same
+    // short delay there is imperceptible.
+    const timeout = setTimeout(loadLoans, 300);
+    return () => clearTimeout(timeout);
   }, [loadLoans]);
 
   const openCreateModal = () => {
@@ -187,12 +210,19 @@ export default function AdminLoansPage() {
     setHistoryLoan(loan);
     setHistoryEntries(null);
     setHistoryError("");
+    setSmsLog(null);
+    setSmsLogError("");
     setHistoryModalOpen(true);
 
     api
       .get(`/loans/${loan.id}/history`)
       .then((res) => setHistoryEntries(res.data))
       .catch(() => setHistoryError("Couldn't load this loan's history."));
+
+    api
+      .get(`/loans/${loan.id}/sms-log`)
+      .then((res) => setSmsLog(res.data))
+      .catch(() => setSmsLogError("Couldn't load this loan's message log."));
   };
 
   const openPaymentModal = (loan: Loan) => {
@@ -298,12 +328,20 @@ export default function AdminLoansPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Loans</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Loans</h1>
           <p className="text-sm text-muted-foreground">
             Manage borrowers and their loan records.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            onClick={() => downloadLoansCsv(loans ?? [])}
+            disabled={!loans || loans.length === 0}
+          >
+            <Download className="size-4" />
+            Export CSV
+          </Button>
           <Button variant="outline" onClick={handleNotifyAllDue} disabled={notifyingAll}>
             {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
             Notify all due
@@ -315,6 +353,30 @@ export default function AdminLoansPage() {
         </div>
       </div>
 
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, email, or loan #"
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select
+          className="sm:w-48"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as LoanStatus | "")}
+        >
+          <option value="">All statuses</option>
+          {STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </Select>
+      </div>
+
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="size-4" />
@@ -322,7 +384,7 @@ export default function AdminLoansPage() {
         </Alert>
       )}
       {notifyResult && (
-        <Alert>
+        <Alert variant="success">
           <AlertDescription>{notifyResult}</AlertDescription>
         </Alert>
       )}
@@ -332,125 +394,227 @@ export default function AdminLoansPage() {
         </Alert>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[900px] text-left text-sm">
-          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Loan #</th>
-              <th className="px-3 py-2 font-medium">Borrower</th>
-              <th className="px-3 py-2 font-medium">Principal</th>
-              <th className="px-3 py-2 font-medium">Paid</th>
-              <th className="px-3 py-2 font-medium">Balance</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Due</th>
-              <th className="px-3 py-2 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {!loans && (
-              <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
-                  <Loader2 className="mx-auto size-5 animate-spin" />
-                </td>
-              </tr>
-            )}
+      {!loans ? (
+        <div className="flex justify-center rounded-xl border border-border py-8">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : loans.length === 0 ? (
+        <div className="rounded-xl border border-border py-8 text-center text-sm text-muted-foreground">
+          {search || statusFilter ? "No loans match your search/filter." : "No loans yet. Create the first one."}
+        </div>
+      ) : (
+        <>
+          {/* Table — md and up, where there's room for every column at once */}
+          <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Loan #</th>
+                  <th className="px-3 py-2 font-medium">Borrower</th>
+                  <th className="px-3 py-2 font-medium">Principal</th>
+                  <th className="px-3 py-2 font-medium">Paid</th>
+                  <th className="px-3 py-2 font-medium">Balance</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Due</th>
+                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {loans.map((loan) => (
+                  <tr key={loan.id}>
+                    <td className="px-3 py-2 font-mono text-xs">{loan.loan_number}</td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{loan.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        @{loan.username} {loan.phone ? `· ${loan.phone}` : ""}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">{formatCurrency(loan.total_loan)}</td>
+                    <td className="px-3 py-2">{formatCurrency(loan.total_paid)}</td>
+                    <td className="px-3 py-2">{formatCurrency(loan.balance)}</td>
+                    <td className="px-3 py-2">
+                      <Badge variant={STATUS_BADGE[loan.status]}>
+                        {loan.is_overdue ? "overdue" : loan.status}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">{formatDate(loan.due_date)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleNotify(loan)}
+                          disabled={notifyingId === loan.id || !loan.phone}
+                          aria-label={`Notify ${loan.name}`}
+                          title={loan.phone ? undefined : "No phone number on file"}
+                        >
+                          {notifyingId === loan.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Bell className="size-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openMessageModal(loan)}
+                          disabled={!loan.phone}
+                          aria-label={`Message ${loan.name}`}
+                          title={loan.phone ? undefined : "No phone number on file"}
+                        >
+                          <MessageSquare className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openPaymentModal(loan)}
+                          aria-label={`Record payment for ${loan.name}`}
+                        >
+                          <Banknote className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openHistoryModal(loan)}
+                          aria-label={`View history for ${loan.name}`}
+                        >
+                          <History className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openEditModal(loan)}
+                          aria-label={`Edit loan for ${loan.name}`}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => handleDelete(loan)}
+                          disabled={deletingId === loan.id}
+                          aria-label={`Delete loan for ${loan.name}`}
+                        >
+                          {deletingId === loan.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="size-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-            {loans && loans.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
-                  No loans yet. Create the first one.
-                </td>
-              </tr>
-            )}
-
-            {loans?.map((loan) => (
-              <tr key={loan.id}>
-                <td className="px-3 py-2 font-mono text-xs">{loan.loan_number}</td>
-                <td className="px-3 py-2">
-                  <div className="font-medium">{loan.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    @{loan.username} {loan.phone ? `· ${loan.phone}` : ""}
+          {/* Cards — below md, where a 900px-wide table would only mean sideways scrolling */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {loans.map((loan) => (
+              <Card key={loan.id}>
+                <CardContent className="flex flex-col gap-3 pt-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{loan.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {loan.loan_number} · @{loan.username}
+                        {loan.phone ? ` · ${loan.phone}` : ""}
+                      </div>
+                    </div>
+                    <Badge variant={STATUS_BADGE[loan.status]}>
+                      {loan.is_overdue ? "overdue" : loan.status}
+                    </Badge>
                   </div>
-                </td>
-                <td className="px-3 py-2">{formatCurrency(loan.total_loan)}</td>
-                <td className="px-3 py-2">{formatCurrency(loan.total_paid)}</td>
-                <td className="px-3 py-2">{formatCurrency(loan.balance)}</td>
-                <td className="px-3 py-2">
-                  <Badge variant={STATUS_BADGE[loan.status]}>
-                    {loan.is_overdue ? "overdue" : loan.status}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2">{formatDate(loan.due_date)}</td>
-                <td className="px-3 py-2">
-                  <div className="flex justify-end gap-1">
+
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Principal</div>
+                      <div className="font-medium">{formatCurrency(loan.total_loan)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Paid</div>
+                      <div className="font-medium">{formatCurrency(loan.total_paid)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Balance</div>
+                      <div className="font-medium">{formatCurrency(loan.balance)}</div>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    Due {formatDate(loan.due_date)}
+                  </div>
+
+                  <div className="flex flex-wrap gap-1 border-t border-border pt-3">
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       onClick={() => handleNotify(loan)}
                       disabled={notifyingId === loan.id || !loan.phone}
                       aria-label={`Notify ${loan.name}`}
                       title={loan.phone ? undefined : "No phone number on file"}
                     >
                       {notifyingId === loan.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Bell className="size-3.5" />
+                        <Bell className="size-4" />
                       )}
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       onClick={() => openMessageModal(loan)}
                       disabled={!loan.phone}
                       aria-label={`Message ${loan.name}`}
                       title={loan.phone ? undefined : "No phone number on file"}
                     >
-                      <MessageSquare className="size-3.5" />
+                      <MessageSquare className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       onClick={() => openPaymentModal(loan)}
                       aria-label={`Record payment for ${loan.name}`}
                     >
-                      <Banknote className="size-3.5" />
+                      <Banknote className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       onClick={() => openHistoryModal(loan)}
                       aria-label={`View history for ${loan.name}`}
                     >
-                      <History className="size-3.5" />
+                      <History className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       onClick={() => openEditModal(loan)}
                       aria-label={`Edit loan for ${loan.name}`}
                     >
-                      <Pencil className="size-3.5" />
+                      <Pencil className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon-sm"
+                      size="icon-lg"
                       onClick={() => handleDelete(loan)}
                       disabled={deletingId === loan.id}
                       aria-label={`Delete loan for ${loan.name}`}
                     >
                       {deletingId === loan.id ? (
-                        <Loader2 className="size-3.5 animate-spin" />
+                        <Loader2 className="size-4 animate-spin" />
                       ) : (
-                        <Trash2 className="size-3.5" />
+                        <Trash2 className="size-4" />
                       )}
                     </Button>
                   </div>
-                </td>
-              </tr>
+                </CardContent>
+              </Card>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </>
+      )}
 
       <Modal
         open={modalOpen}
@@ -657,6 +821,48 @@ export default function AdminLoansPage() {
         ) : (
           <LoanHistoryTable entries={historyEntries ?? []} />
         )}
+
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold">Messages sent</h3>
+          {smsLogError && (
+            <Alert variant="destructive">
+              <AlertDescription>{smsLogError}</AlertDescription>
+            </Alert>
+          )}
+          {!smsLog && !smsLogError ? (
+            <div className="flex justify-center py-6">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : smsLog && smsLog.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              No messages sent to this loan yet.
+            </p>
+          ) : (
+            <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
+              <ul className="divide-y divide-border">
+                {smsLog?.map((entry) => (
+                  <li key={entry.id} className="flex flex-col gap-1 px-3 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(entry.created_at).toLocaleString("en-PH", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </span>
+                      <Badge variant={entry.success ? "success" : "destructive"}>
+                        {entry.success ? "sent" : "failed"}
+                      </Badge>
+                    </div>
+                    <p className="text-foreground/90">{entry.message}</p>
+                    {!entry.success && entry.error && (
+                      <p className="text-xs text-destructive">{entry.error}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </Modal>
 
       <Modal
