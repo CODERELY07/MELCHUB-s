@@ -10,16 +10,28 @@
 //    cached response for that exact endpoint + logged-in account.
 //  - Static assets (/_next/static, icons, images): stale-while-revalidate —
 //    these are content-hashed, so a cached copy is always safe to serve.
+//  - Everything else same-origin (Next.js's own RSC/navigation data fetches
+//    for client-side <Link> transitions): stale-while-revalidate too. A hard
+//    page reload is covered by the "navigate" case above, but clicking
+//    between pages inside the installed app doesn't reload the document —
+//    it fetches this instead, and without caching it, opening a page you
+//    haven't already loaded *this session* would fail outright while
+//    offline even though you'd visited it plenty of times before.
 //  - Never intercepts non-GET requests: creating a loan, recording a
 //    payment, uploading a screenshot, etc. always require a live network
 //    connection and are never queued or faked offline.
 //  - Never lets a failed fetch resolve to `undefined` — that surfaces in the
 //    browser as ERR_FAILED ("This site can't be reached").
+//
+// None of this fabricates data that was never actually loaded: a page (or
+// its data) only ever works offline because it was genuinely fetched at
+// least once while online, exactly like every browser cache.
 
 const PAGE_CACHE = "melchub-pages-v2";
 const API_CACHE = "melchub-api-v2";
 const ASSET_CACHE = "melchub-assets-v2";
-const CACHES = [PAGE_CACHE, API_CACHE, ASSET_CACHE];
+const RSC_CACHE = "melchub-rsc-v1";
+const CACHES = [PAGE_CACHE, API_CACHE, ASSET_CACHE, RSC_CACHE];
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -67,9 +79,13 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/_next/static/") || /\.(png|svg|ico|webp|jpg|jpeg|woff2?)$/.test(url.pathname)) {
-    event.respondWith(staleWhileRevalidate(request));
+    event.respondWith(staleWhileRevalidate(request, ASSET_CACHE));
+    return;
   }
-  // Everything else (RSC payloads, dev/HMR requests, …) goes straight to the network.
+
+  // Next.js's own RSC/navigation-data fetches for client-side <Link>
+  // transitions — see the top-of-file note on why these need caching too.
+  event.respondWith(staleWhileRevalidate(request, RSC_CACHE));
 });
 
 /**
@@ -98,8 +114,8 @@ async function networkFirst(request, cacheName, key) {
   }
 }
 
-async function staleWhileRevalidate(request) {
-  const cache = await caches.open(ASSET_CACHE);
+async function staleWhileRevalidate(request, cacheName) {
+  const cache = await caches.open(cacheName);
   const cached = await cache.match(request);
 
   const network = fetch(request)

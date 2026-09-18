@@ -7,6 +7,7 @@ import { LogOut, MoreHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InstallPwaButton } from "@/components/install-pwa-button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { OfflineBanner } from "@/components/offline-banner";
 import { cn } from "@/lib/utils";
 
 export interface AppShellNavItem {
@@ -204,10 +205,11 @@ export function AppShell({
       </aside>
 
       <main
-        className="min-w-0 flex-1 overflow-x-hidden p-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:p-6 lg:pb-6"
+        className="flex min-w-0 flex-1 flex-col overflow-x-hidden pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-6"
         inert={moreOpen}
       >
-        {children}
+        <OfflineBanner />
+        <div className="p-4 sm:p-6">{children}</div>
       </main>
 
       {/* Mobile bottom tab bar — the app's primary navigation below lg */}
