@@ -7,16 +7,26 @@ import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
 import borrowerApi from "@/lib/borrower-axios";
+import { ADMIN_LOGIN_PATH, PREFERRED_LOGIN_KEY } from "@/lib/auth-context";
 
 /**
  * "/" is not a real destination page — it just figures out where a visitor
  * actually belongs and sends them there, so nobody has to pass through here
  * on the way to a dashboard they're already signed into. Checks the staff
  * session first (arbitrary priority for the rare case both exist on the same
- * browser — see docs/loans.md Part 5), then the borrower session, and falls
- * back to the borrower/client login — not the staff one, which deliberately
- * lives at an obscure URL (see docs/terms-and-pwa.md Part 5) instead of
- * being the default entry point.
+ * browser — see docs/loans.md Part 5), then the borrower session, and — if
+ * neither is currently valid — falls back to whichever login was used last
+ * on this device (PREFERRED_LOGIN_KEY, set at login time), defaulting to the
+ * borrower/client login the very first time.
+ *
+ * That fallback matters specifically for the installed PWA: its start_url
+ * is "/", and a standalone installed app has no address bar to type
+ * ADMIN_LOGIN_PATH into if this ever lands an admin on the wrong login. A
+ * signed-out admin re-opening the installed app would otherwise be stuck on
+ * the borrower login with no way to reach their own — see
+ * docs/terms-and-pwa.md Part 5 for why that path is obscure/unlinked in the
+ * first place, and why this fallback (not a visible "staff login" link) is
+ * the fix that doesn't undo that.
  */
 export default function RootPage() {
   const router = useRouter();
@@ -59,7 +69,10 @@ export default function RootPage() {
         }
       }
 
-      if (!cancelled) router.replace("/portal/login");
+      if (!cancelled) {
+        const preferred = localStorage.getItem(PREFERRED_LOGIN_KEY);
+        router.replace(preferred === "admin" ? ADMIN_LOGIN_PATH : "/portal/login");
+      }
     }
 
     decide();

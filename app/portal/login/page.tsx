@@ -7,6 +7,7 @@ import { isAxiosError } from "axios";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
+import { PREFERRED_LOGIN_KEY } from "@/lib/auth-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ export default function PortalLoginPage() {
         remember,
       });
       localStorage.setItem("borrower_token", response.data.token);
+      localStorage.setItem(PREFERRED_LOGIN_KEY, "borrower");
       await refresh();
       router.push("/portal");
     } catch (err: unknown) {

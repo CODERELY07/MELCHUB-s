@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
 import api from "@/lib/axios";
-import { useAuth } from "@/lib/auth-context";
+import { useAuth, PREFERRED_LOGIN_KEY } from "@/lib/auth-context";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +51,7 @@ export default function LoginPage() {
       // prefer having it set an httpOnly, secure cookie instead and drop
       // this line entirely.
       localStorage.setItem("token", response.data.token);
+      localStorage.setItem(PREFERRED_LOGIN_KEY, "admin");
 
       await refresh();
       router.push("/admin/dashboard");

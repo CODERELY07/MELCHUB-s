@@ -19,6 +19,12 @@ import type { AuthUser } from "@/lib/types";
 // whether this path is ever discovered.
 export const ADMIN_LOGIN_PATH = "/M4RK31Y4DM1N";
 
+// Set on every successful login (staff or borrower) so "/" — the installed
+// PWA's start_url, with no address bar to type a different one into — can
+// send a signed-out visitor back to the login they actually used last,
+// instead of always defaulting to the borrower one. See client/app/page.tsx.
+export const PREFERRED_LOGIN_KEY = "preferred_login";
+
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
