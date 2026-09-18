@@ -6,6 +6,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
 import api from "@/lib/axios";
 import { useAuth } from "@/lib/auth-context";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,13 +65,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 py-12">
+      <ThemeToggle iconOnly className="absolute top-4 right-4" />
       <Card className="w-full max-w-sm shadow-xl">
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-primary font-heading text-lg font-bold text-primary-foreground shadow-md">
             M
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+          <CardTitle as="h1" className="text-3xl font-bold tracking-tight">Welcome back</CardTitle>
           <CardDescription>
             Enter your username and password to sign in
           </CardDescription>
@@ -112,7 +114,6 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  tabIndex={-1}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? (

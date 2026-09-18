@@ -88,7 +88,7 @@ export default function PortalProfilePage() {
   return (
     <div className="flex max-w-lg flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Profile</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
         <p className="text-sm text-muted-foreground">
           Update your contact details or change your password.
         </p>
@@ -97,7 +97,7 @@ export default function PortalProfilePage() {
       <Card>
         <form onSubmit={handleProfileSubmit}>
           <CardHeader>
-            <CardTitle className="text-base">Your details</CardTitle>
+            <CardTitle as="h2" className="text-base">Your details</CardTitle>
             <CardDescription>Loan {loan.loan_number}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -107,7 +107,7 @@ export default function PortalProfilePage() {
               </Alert>
             )}
             {profileSuccess && (
-              <Alert>
+              <Alert variant="success">
                 <AlertDescription>{profileSuccess}</AlertDescription>
               </Alert>
             )}
@@ -169,7 +169,7 @@ export default function PortalProfilePage() {
       <Card>
         <form onSubmit={handlePasswordSubmit}>
           <CardHeader>
-            <CardTitle className="text-base">Change password</CardTitle>
+            <CardTitle as="h2" className="text-base">Change password</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {passwordError && (
@@ -178,7 +178,7 @@ export default function PortalProfilePage() {
               </Alert>
             )}
             {passwordSuccess && (
-              <Alert>
+              <Alert variant="success">
                 <AlertDescription>{passwordSuccess}</AlertDescription>
               </Alert>
             )}

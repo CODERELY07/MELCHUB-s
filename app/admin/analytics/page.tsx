@@ -19,8 +19,8 @@ import type { AnalyticsData } from "@/lib/types";
 const STATUS_COLORS: Record<string, string> = {
   pending: "var(--color-muted-foreground)",
   active: "var(--color-primary)",
-  paid: "#10b981",
-  overdue: "#f59e0b",
+  paid: "var(--color-success)",
+  overdue: "var(--color-warning)",
   defaulted: "var(--color-destructive)",
   cancelled: "var(--color-muted-foreground)",
 };
@@ -71,7 +71,7 @@ export default function AdminAnalyticsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Analytics</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
           <p className="text-sm text-muted-foreground">
             A full picture of your lending activity, past 12 months.
           </p>
@@ -112,11 +112,12 @@ export default function AdminAnalyticsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Loans created per month</CardTitle>
+            <CardTitle as="h2" className="text-base">Loans created per month</CardTitle>
             <CardDescription>Count of new loans, last 12 months</CardDescription>
           </CardHeader>
           <CardContent>
             <BarChart
+              title="Loans created per month"
               data={monthly_loans.map((m) => ({ label: monthLabel(m.month), value: m.count }))}
             />
           </CardContent>
@@ -124,14 +125,15 @@ export default function AdminAnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Collections per month</CardTitle>
+            <CardTitle as="h2" className="text-base">Collections per month</CardTitle>
             <CardDescription>Total payments received, last 12 months</CardDescription>
           </CardHeader>
           <CardContent>
             <BarChart
+              title="Collections per month"
               data={monthly_collections.map((m) => ({ label: monthLabel(m.month), value: m.amount }))}
               formatValue={(v) => formatCurrency(v)}
-              barColor="#10b981"
+              barColor="var(--color-success)"
             />
           </CardContent>
         </Card>
@@ -139,7 +141,7 @@ export default function AdminAnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Loan status breakdown</CardTitle>
+          <CardTitle as="h2" className="text-base">Loan status breakdown</CardTitle>
           <CardDescription>{totals.loan_count} loans total</CardDescription>
         </CardHeader>
         <CardContent>

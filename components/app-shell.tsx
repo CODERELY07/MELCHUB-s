@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type ComponentType } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import Link from "next/link";
 import { LogOut, Menu, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { InstallPwaButton } from "@/components/install-pwa-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 export interface AppShellNavItem {
@@ -44,6 +45,29 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  const closeDrawer = () => {
+    setMobileOpen(false);
+    menuButtonRef.current?.focus();
+  };
+
+  // The drawer is a plain <div>, not <dialog>, so none of this comes free —
+  // Escape-to-close and keeping focus off the page underneath have to be
+  // wired up by hand instead of inherited from the platform the way <Modal>
+  // gets them.
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    closeButtonRef.current?.focus();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDrawer();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
 
   const nav = (
     <>
@@ -76,6 +100,7 @@ export function AppShell({
       <div className="mt-auto flex flex-col gap-2 border-t border-sidebar-border pt-4">
         <div className="truncate px-2 text-xs text-muted-foreground">{userLabel}</div>
         <InstallPwaButton />
+        <ThemeToggle />
         <Button variant="ghost" className="justify-start" onClick={onLogout}>
           <LogOut className="size-4" />
           Log out
@@ -87,7 +112,10 @@ export function AppShell({
   return (
     <div className="flex min-h-screen flex-col bg-muted/20 lg:flex-row">
       {/* Mobile top bar — hidden at lg and up, where the sidebar is always visible inline */}
-      <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar px-4 py-3 lg:hidden">
+      <div
+        className="flex items-center justify-between border-b border-sidebar-border bg-sidebar px-4 py-3 lg:hidden"
+        inert={mobileOpen}
+      >
         <div className="flex items-center gap-2">
           <div className="flex size-7 items-center justify-center rounded-lg bg-primary font-heading text-xs font-bold text-primary-foreground">
             M
@@ -95,6 +123,7 @@ export function AppShell({
           <span className="text-sm font-semibold text-sidebar-foreground">{title}</span>
         </div>
         <button
+          ref={menuButtonRef}
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open menu"
@@ -106,16 +135,17 @@ export function AppShell({
 
       {/* Mobile drawer + backdrop */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={`${title} menu`}>
           <div
             className="absolute inset-0 bg-black/50"
-            onClick={() => setMobileOpen(false)}
+            onClick={closeDrawer}
             aria-hidden="true"
           />
           <aside className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col gap-1 overflow-y-auto border-r border-sidebar-border bg-sidebar p-4 shadow-xl">
             <button
+              ref={closeButtonRef}
               type="button"
-              onClick={() => setMobileOpen(false)}
+              onClick={closeDrawer}
               aria-label="Close menu"
               className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent"
             >
@@ -131,7 +161,9 @@ export function AppShell({
         {nav}
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6">{children}</main>
+      <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6" inert={mobileOpen}>
+        {children}
+      </main>
     </div>
   );
 }

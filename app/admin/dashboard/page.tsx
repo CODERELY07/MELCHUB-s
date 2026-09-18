@@ -92,7 +92,7 @@ export default function AdminDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
           Overview of every loan in the system.
         </p>
@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Active loans</CardTitle>
+          <CardTitle as="h2">Active loans</CardTitle>
           <CardDescription>{activeCount} currently active</CardDescription>
         </CardHeader>
       </Card>

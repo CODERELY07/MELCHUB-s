@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isAxiosError } from "axios";
 
 import borrowerApi from "@/lib/borrower-axios";
@@ -32,10 +32,19 @@ MELCHUB Loan Agreement — Terms & Conditions
 `.trim();
 
 export function TermsModal({ loan, onAccepted }: TermsModalProps) {
+  const ref = useRef<HTMLDialogElement>(null);
   const [agreed, setAgreed] = useState(false);
   const [signatureName, setSignatureName] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // A real modal dialog, not just one styled to look like it — showModal()
+  // is what actually gives this a ::backdrop, traps focus, and blocks
+  // interaction with the portal underneath until terms are accepted.
+  useEffect(() => {
+    const dialog = ref.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
 
   const nameMatches =
     signatureName.trim().length > 0 &&
@@ -72,8 +81,11 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
 
   return (
     <dialog
-      open
-      className="fixed inset-0 z-50 m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60"
+      ref={ref}
+      // Acceptance is mandatory — there's no other way out of this loan's
+      // onboarding, so Escape doesn't get to be a silent bypass.
+      onCancel={(e) => e.preventDefault()}
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60 open:animate-in open:fade-in-0 open:zoom-in-95"
     >
       <form onSubmit={handleSubmit} className="flex max-h-[85vh] flex-col">
         <div className="border-b border-border p-6 pb-4">

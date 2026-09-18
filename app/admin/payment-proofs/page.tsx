@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -93,7 +94,7 @@ export default function AdminPaymentProofsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Payment Proofs</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Payment Proofs</h1>
           <p className="text-sm text-muted-foreground">
             Review GCash screenshots borrowers have submitted.
           </p>
@@ -118,87 +119,158 @@ export default function AdminPaymentProofsPage() {
         </Alert>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[800px] text-left text-sm">
-          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Loan</th>
-              <th className="px-3 py-2 font-medium">Amount claimed</th>
-              <th className="px-3 py-2 font-medium">Submitted</th>
-              <th className="px-3 py-2 font-medium">Screenshot</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {!proofs && (
-              <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                  <Loader2 className="mx-auto size-5 animate-spin" />
-                </td>
-              </tr>
-            )}
-            {proofs && proofs.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">
-                  No payment proofs {filter === "pending" ? "pending review" : "yet"}.
-                </td>
-              </tr>
-            )}
-            {proofs?.map((proof) => (
-              <tr key={proof.id}>
-                <td className="px-3 py-2">
-                  <div className="font-medium">{proof.loan?.name}</div>
-                  <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
-                </td>
-                <td className="px-3 py-2">{formatCurrency(proof.amount)}</td>
-                <td className="px-3 py-2">{formatDate(proof.created_at)}</td>
-                <td className="px-3 py-2">
+      {!proofs ? (
+        <div className="flex justify-center rounded-xl border border-border py-8">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : proofs.length === 0 ? (
+        <div className="rounded-xl border border-border py-8 text-center text-sm text-muted-foreground">
+          No payment proofs {filter === "pending" ? "pending review" : "yet"}.
+        </div>
+      ) : (
+        <>
+          {/* Table — md and up */}
+          <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Loan</th>
+                  <th className="px-3 py-2 font-medium">Amount claimed</th>
+                  <th className="px-3 py-2 font-medium">Submitted</th>
+                  <th className="px-3 py-2 font-medium">Screenshot</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {proofs.map((proof) => (
+                  <tr key={proof.id}>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{proof.loan?.name}</div>
+                      <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                    </td>
+                    <td className="px-3 py-2">{formatCurrency(proof.amount)}</td>
+                    <td className="px-3 py-2">{formatDate(proof.created_at)}</td>
+                    <td className="px-3 py-2">
+                      <a
+                        href={proof.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline"
+                      >
+                        View <ExternalLink className="size-3" />
+                      </a>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
+                      {proof.status === "rejected" && proof.note && (
+                        <div className="mt-1 max-w-[200px] text-xs text-muted-foreground">{proof.note}</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {proof.status === "pending" ? (
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon-sm" onClick={() => openApprove(proof)} aria-label="Approve">
+                            <Check className="size-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => {
+                              setRejectTarget(proof);
+                              setRejectNote("");
+                              setRejectError("");
+                            }}
+                            aria-label="Reject"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="block text-right text-xs text-muted-foreground">
+                          {proof.reviewer?.name}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Cards — below md */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {proofs.map((proof) => (
+              <Card key={proof.id}>
+                <CardContent className="flex flex-col gap-3 pt-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium">{proof.loan?.name}</div>
+                      <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                    </div>
+                    <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Amount claimed</div>
+                      <div className="font-medium">{formatCurrency(proof.amount)}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-muted-foreground">Submitted</div>
+                      <div>{formatDate(proof.created_at)}</div>
+                    </div>
+                  </div>
+
                   <a
                     href={proof.file_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-primary hover:underline"
+                    className="inline-flex w-fit items-center gap-1 text-sm text-primary hover:underline"
                   >
-                    View <ExternalLink className="size-3" />
+                    View screenshot <ExternalLink className="size-3" />
                   </a>
-                </td>
-                <td className="px-3 py-2">
-                  <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
+
                   {proof.status === "rejected" && proof.note && (
-                    <div className="mt-1 max-w-[200px] text-xs text-muted-foreground">{proof.note}</div>
+                    <div className="text-xs text-muted-foreground">{proof.note}</div>
                   )}
-                </td>
-                <td className="px-3 py-2">
+
                   {proof.status === "pending" ? (
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon-sm" onClick={() => openApprove(proof)} aria-label="Approve">
-                        <Check className="size-3.5" />
+                    <div className="flex gap-2 border-t border-border pt-3">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => openApprove(proof)}
+                      >
+                        <Check className="size-4" />
+                        Approve
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="icon-sm"
+                        variant="outline"
+                        className="flex-1"
                         onClick={() => {
                           setRejectTarget(proof);
                           setRejectNote("");
                           setRejectError("");
                         }}
-                        aria-label="Reject"
                       >
-                        <X className="size-3.5" />
+                        <X className="size-4" />
+                        Reject
                       </Button>
                     </div>
                   ) : (
-                    <span className="block text-right text-xs text-muted-foreground">
-                      {proof.reviewer?.name}
-                    </span>
+                    proof.reviewer?.name && (
+                      <div className="border-t border-border pt-3 text-xs text-muted-foreground">
+                        Reviewed by {proof.reviewer.name}
+                      </div>
+                    )
                   )}
-                </td>
-              </tr>
+                </CardContent>
+              </Card>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </>
+      )}
 
       <Modal
         open={!!approveTarget}

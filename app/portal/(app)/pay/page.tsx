@@ -92,7 +92,7 @@ export default function PortalPayPage() {
   return (
     <div className="flex max-w-lg flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Pay</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Pay</h1>
         <p className="text-sm text-muted-foreground">
           Send payment via GCash, then upload your reference screenshot here.
         </p>
@@ -100,7 +100,7 @@ export default function PortalPayPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">GCash payment details</CardTitle>
+          <CardTitle as="h2" className="text-base">GCash payment details</CardTitle>
           <CardDescription>Balance due: {formatCurrency(loan.balance)}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -124,7 +124,7 @@ export default function PortalPayPage() {
       <Card>
         <form onSubmit={handleSubmit}>
           <CardHeader>
-            <CardTitle className="text-base">Submit payment proof</CardTitle>
+            <CardTitle as="h2" className="text-base">Submit payment proof</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -133,7 +133,7 @@ export default function PortalPayPage() {
               </Alert>
             )}
             {success && (
-              <Alert>
+              <Alert variant="success">
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}

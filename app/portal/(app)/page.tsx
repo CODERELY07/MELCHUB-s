@@ -49,7 +49,7 @@ export default function PortalHomePage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Welcome, {loan.name}</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Welcome, {loan.name}</h1>
         <p className="text-sm text-muted-foreground">
           Loan {loan.loan_number} · <Badge variant={STATUS_BADGE[loan.status]}>{loan.is_overdue ? "overdue" : loan.status}</Badge>
         </p>
@@ -104,7 +104,7 @@ export default function PortalHomePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Loan term</CardTitle>
+          <CardTitle as="h2" className="text-base">Loan term</CardTitle>
           <CardDescription>
             {formatDate(loan.start_date)} &ndash; {formatDate(loan.due_date)}
           </CardDescription>
