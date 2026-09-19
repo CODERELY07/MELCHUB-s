@@ -17,11 +17,12 @@ import { StatCard, type StatTone } from "@/components/ui/stat-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/format";
-import type { Loan } from "@/lib/types";
+import type { LendingBudgetSettings, Loan } from "@/lib/types";
 
 export default function AdminDashboardPage() {
   const [loans, setLoans] = useState<Loan[] | null>(null);
   const [error, setError] = useState("");
+  const [remainingBudget, setRemainingBudget] = useState<{ remaining: number | null } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,6 +37,13 @@ export default function AdminDashboardPage() {
         }
         setError("Couldn't load loans.");
       });
+
+    // Admin-only endpoint — a 403 for other staff (or no budget set) just
+    // means the card isn't shown.
+    api
+      .get("/settings/lending-budget")
+      .then((res) => setRemainingBudget({ remaining: (res.data as LendingBudgetSettings).remaining_budget }))
+      .catch(() => setRemainingBudget(null));
   }, [router]);
 
   if (error) {
@@ -90,6 +98,15 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  if (remainingBudget !== null) {
+    stats.push({
+      label: "Available to lend",
+      value: remainingBudget.remaining !== null ? formatCurrency(remainingBudget.remaining) : "Not set",
+      icon: Landmark,
+      tone: 5,
+    });
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -99,7 +116,7 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${stats.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         {stats.map((stat) => (
           <StatCard key={stat.label} label={stat.label} value={stat.value} icon={stat.icon} tone={stat.tone} />
         ))}
