@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TERMS_TEXT } from "@/lib/terms";
 import type { Loan } from "@/lib/types";
 
 interface TermsModalProps {
@@ -15,28 +16,13 @@ interface TermsModalProps {
   onAccepted: (loan: Loan) => void;
 }
 
-const TERMS_TEXT = `
-MELCHUB Loan Agreement — Terms & Conditions
-
-1. Loan amount and interest. The principal amount, daily interest rate, start date, and due date of your loan are as recorded in your MELCHUB account and shown on your dashboard. Interest accrues daily on the original principal for every day the loan remains open.
-
-2. Payments. Payments may be made via GCash to the account shown on your dashboard. After sending payment, upload a screenshot of your GCash reference as proof; your loan officer will review and confirm it. Your balance only updates once a payment is confirmed.
-
-3. Due date and late fees. If your loan is not fully paid by its due date, a late fee of ₱15.00 will be added and your due date will automatically be extended by one week. This may repeat if the loan remains unpaid.
-
-4. Communication. You agree to receive SMS messages from MELCHUB regarding your loan, including payment reminders, due date notices, and payment confirmations, at the phone number on file.
-
-5. Accuracy of information. You confirm that the personal information on your account (name, contact details) is accurate, and agree to keep it up to date via your profile page.
-
-6. Agreement. By checking the box below and typing your full name as your signature, you acknowledge that you have read and agree to these terms, and that your typed name serves as your electronic signature on this agreement.
-`.trim();
-
 export function TermsModal({ loan, onAccepted }: TermsModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [agreed, setAgreed] = useState(false);
   const [signatureName, setSignatureName] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   // A real modal dialog, not just one styled to look like it — showModal()
   // is what actually gives this a ::backdrop, traps focus, and blocks
@@ -63,6 +49,12 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
       return;
     }
 
+    // Signing is binding, so ask once more before actually saving.
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await borrowerApi.post("/borrower/accept-terms", {
@@ -76,6 +68,7 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
       );
     } finally {
       setSubmitting(false);
+      setConfirming(false);
     }
   };
 
@@ -116,7 +109,18 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
             />
-            I have read and agree to the terms and conditions above.
+            <span>
+              I have read and agree to the{" "}
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                Terms &amp; Conditions
+              </a>
+              .
+            </span>
           </label>
 
           <div className="space-y-1.5">
@@ -132,9 +136,26 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
             />
           </div>
 
-          <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting ? "Saving..." : "I Agree & Sign"}
-          </Button>
+          {confirming ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
+              <p className="text-sm font-medium">
+                Are you sure you agree to the Terms &amp; Conditions? Your typed name will serve as your
+                electronic signature.
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setConfirming(false)} disabled={submitting}>
+                  Go back
+                </Button>
+                <Button type="submit" className="flex-1" disabled={submitting}>
+                  {submitting ? "Saving..." : "Yes, I agree"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button type="submit" className="w-full">
+              I Agree &amp; Sign
+            </Button>
+          )}
         </div>
       </form>
     </dialog>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isAxiosError } from "axios";
 
 import borrowerApi from "@/lib/borrower-axios";
@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
 import { formatCurrency } from "@/lib/format";
-import type { LoanRequest, LoanRequestPlan } from "@/lib/types";
+import { cachedGet } from "@/lib/offline-cache";
+import type { LoanDefaultsSettings, LoanRequest, LoanRequestPlan } from "@/lib/types";
 
 interface LoanRequestModalProps {
   open: boolean;
@@ -69,6 +70,17 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [lateFee, setLateFee] = useState<number | null>(null);
+
+  // The late fee is admin-configurable, so show the real current figure.
+  useEffect(() => {
+    if (!open) return;
+    cachedGet("loan-defaults", () =>
+      borrowerApi.get("/settings/loan-defaults").then((res) => res.data as LoanDefaultsSettings)
+    )
+      .then((d) => setLateFee(Number(d.late_fee_amount)))
+      .catch(() => setLateFee(null));
+  }, [open]);
 
   const reset = () => {
     setPlan("");
@@ -149,14 +161,15 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
         {availableCredit === null ? (
           <Alert variant="destructive">
             <AlertDescription>
-              Your loan officer hasn&apos;t set a borrowing limit for your account yet — please contact
-              them directly to request a loan.
+              Loans aren&apos;t open for requests right now — your loan officer hasn&apos;t set a lending
+              budget or a borrowing limit for your account yet. Please contact them directly.
             </AlertDescription>
           </Alert>
         ) : availableCredit <= 0 ? (
           <Alert variant="destructive">
             <AlertDescription>
-              You&apos;ve reached your borrowing limit. Pay down your current loan to request more.
+              There&apos;s nothing available to borrow right now — you&apos;ve reached your limit, or the
+              lending budget is fully used. Check back later or contact your loan officer.
             </AlertDescription>
           </Alert>
         ) : (
@@ -227,6 +240,25 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
               />
             </div>
 
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+              <p className="mb-1.5 font-semibold">Important — due dates &amp; late payment</p>
+              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>
+                  Each installment must be paid <strong className="text-foreground">on or before its due date</strong>{" "}
+                  (every 3 days or every week, depending on your plan).
+                </li>
+                <li>
+                  If you can&apos;t pay by the due date, a{" "}
+                  <strong className="text-foreground">
+                    late fee{lateFee !== null ? ` of ${formatCurrency(lateFee)}` : ""}
+                  </strong>{" "}
+                  is added to your balance and your due date is pushed out by one period (3 days or 1 week).
+                </li>
+                <li>The late fee can repeat each time an installment is missed, and interest keeps accruing until the loan is fully paid.</li>
+                <li>You&apos;ll get an SMS reminder about your due date and any late fee.</li>
+              </ul>
+            </div>
+
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -234,8 +266,8 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
               />
-              I have read and understood the repayment plan above. I understand a late penalty applies
-              to any installment paid after its deadline, which my loan officer will confirm.
+              I have read and understood the repayment plan above. I understand a late fee is added
+              when an installment is not paid by its due date.
             </label>
           </>
         )}
@@ -244,11 +276,9 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
           <Button type="button" variant="outline" onClick={handleClose}>
             Cancel
           </Button>
-          {availableCredit !== null && availableCredit > 0 && (
-            <Button type="submit" disabled={!acknowledged || !plan || !withinLimit || submitting}>
-              {submitting ? "Submitting..." : "Submit request"}
-            </Button>
-          )}
+          <Button type="submit" disabled={!acknowledged || !plan || !withinLimit || submitting}>
+            {submitting ? "Submitting..." : "Submit request"}
+          </Button>
         </div>
       </form>
     </Modal>

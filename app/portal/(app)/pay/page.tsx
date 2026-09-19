@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { isAxiosError } from "axios";
-import { Loader2, ReceiptText, Upload, Wallet } from "lucide-react";
+import { CalendarClock, Loader2, ReceiptText, Upload, WifiOff, Wallet } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
+import { cachedGet } from "@/lib/offline-cache";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,8 @@ const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructiv
 };
 
 export default function PortalPayPage() {
-  const { loan } = useBorrowerAuth();
+  const { loan, refresh } = useBorrowerAuth();
+  const [online, setOnline] = useState(true);
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [proofs, setProofs] = useState<PaymentProof[] | null>(null);
 
@@ -40,25 +42,52 @@ export default function PortalPayPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadProofs = () => {
-    borrowerApi
-      .get("/borrower/payment-proofs")
-      .then((res) => setProofs(res.data))
+    cachedGet("payment-proofs", () =>
+      borrowerApi.get("/borrower/payment-proofs").then((res) => res.data as PaymentProof[])
+    )
+      .then(setProofs)
       .catch(() => setProofs([]));
   };
 
   useEffect(() => {
-    borrowerApi
-      .get("/settings/payment")
-      .then((res) => setSettings(res.data))
+    cachedGet("payment-settings", () =>
+      borrowerApi.get("/settings/payment").then((res) => res.data as PaymentSettings)
+    )
+      .then(setSettings)
       .catch(() => setSettings({ gcash_name: "", gcash_number: "" }));
     loadProofs();
-  }, []);
+    // Always pull the latest loan here — what's due comes from it.
+    refresh();
+  }, [refresh]);
+
+  // Paying needs a live connection: the amount due must be current, and the
+  // proof upload can't be queued. Track connectivity to gate the form.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOnline(navigator.onLine);
+    const on = () => {
+      setOnline(true);
+      refresh();
+      loadProofs();
+    };
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, [refresh]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
+    if (!online) {
+      setError("You're offline. Connect to the internet to submit a payment.");
+      return;
+    }
     if (!file) {
       setError("Please choose a screenshot to upload.");
       return;
@@ -89,6 +118,16 @@ export default function PortalPayPage() {
 
   if (!loan) return null;
 
+  // One installment: 20% of principal plus interest for the plan's period.
+  // Never more than what's actually still owed.
+  const periodDays = loan.repayment_plan === "3_day" ? 3 : 7;
+  const periodLabel = loan.repayment_plan === "3_day" ? "3 days" : "week";
+  const installment = Math.min(
+    loan.balance,
+    Number(loan.total_loan) * (0.2 + (Number(loan.interest_rate) / 100) * periodDays)
+  );
+  const nothingOwed = loan.balance <= 0;
+
   return (
     <div className="flex max-w-lg flex-col gap-6">
       <div>
@@ -97,6 +136,43 @@ export default function PortalPayPage() {
           Send payment via GCash, then upload your reference screenshot here.
         </p>
       </div>
+
+      {!online && (
+        <Alert variant="destructive">
+          <WifiOff className="size-4" />
+          <AlertDescription>
+            You&apos;re offline. Paying needs an internet connection so we can show your up-to-date
+            amount due. Please go online to pay.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!nothingOwed && (
+        <Card>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
+              <CalendarClock className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">
+                Pay for this {periodLabel}
+              </CardTitle>
+              <CardDescription>
+                {loan.repayment_plan === "3_day" ? "3-day" : "Weekly"} plan
+                {loan.due_date ? ` · due ${formatDate(loan.due_date)}` : ""}
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{online ? formatCurrency(installment) : "—"}</div>
+            <p className="text-xs text-muted-foreground">
+              {online
+                ? `Balance remaining: ${formatCurrency(loan.balance)}`
+                : "Go online to see your current amount due."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="!flex items-center gap-3">
@@ -171,7 +247,7 @@ export default function PortalPayPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" disabled={submitting} className="w-full">
+            <Button type="submit" disabled={submitting || !online} className="w-full">
               {submitting ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (

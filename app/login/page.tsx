@@ -6,6 +6,7 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
+import { clearCache } from "@/lib/offline-cache";
 import borrowerApi from "@/lib/borrower-axios";
 import { useAuth } from "@/lib/auth-context";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
@@ -69,6 +70,7 @@ export default function LoginPage() {
 
     try {
       const response = await borrowerApi.post("/borrower/login", { username, password, remember });
+      clearCache(); // never carry a previous account's saved data into this one
       localStorage.setItem("borrower_token", response.data.token);
       await refreshBorrower();
       router.push("/portal");

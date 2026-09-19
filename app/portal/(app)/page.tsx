@@ -8,6 +8,7 @@ import { Wallet, TrendingUp, HandCoins, PiggyBank, FilePlus2, CalendarRange } fr
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { LOGIN_PATH } from "@/lib/auth-context";
+import { cachedGet } from "@/lib/offline-cache";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { LoanRequestModal } from "@/components/loan-request-modal";
 import { Button } from "@/components/ui/button";
@@ -38,9 +39,10 @@ export default function PortalHomePage() {
   const router = useRouter();
 
   const loadLatestRequest = () => {
-    borrowerApi
-      .get("/borrower/loan-requests")
-      .then((res) => setLatestRequest((res.data as LoanRequest[])[0] ?? null))
+    cachedGet("loan-requests", () =>
+      borrowerApi.get("/borrower/loan-requests").then((res) => res.data as LoanRequest[])
+    )
+      .then((requests) => setLatestRequest(requests[0] ?? null))
       .catch(() => {
         // Non-critical — the request button still works even if this fails
         // to load, it just won't show a pending/declined banner.
@@ -48,9 +50,10 @@ export default function PortalHomePage() {
   };
 
   useEffect(() => {
-    borrowerApi
-      .get("/borrower/history")
-      .then((res) => setHistory(res.data))
+    cachedGet("history", () =>
+      borrowerApi.get("/borrower/history").then((res) => res.data as LoanHistoryEntry[])
+    )
+      .then(setHistory)
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("borrower_token");
@@ -90,6 +93,20 @@ export default function PortalHomePage() {
           Request a New Loan
         </Button>
       </div>
+
+      {loan.available_credit !== null && (
+        <Alert>
+          <AlertDescription>
+            {loan.available_credit > 0 ? (
+              <>
+                You can borrow up to <strong className="text-foreground">{formatCurrency(loan.available_credit)}</strong> right now.
+              </>
+            ) : (
+              <>There&apos;s nothing available to borrow right now.</>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {latestRequest?.status === "pending" && (
         <Alert>

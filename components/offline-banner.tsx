@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 
+import { lastSyncedAt } from "@/lib/offline-cache";
+
 /**
  * A persistent, honest signal that data on screen is whatever the service
  * worker last cached, not necessarily current — see public/sw.js's
@@ -11,6 +13,7 @@ import { WifiOff } from "lucide-react";
  */
 export function OfflineBanner() {
   const [online, setOnline] = useState(true);
+  const [synced, setSynced] = useState<string | null>(null);
 
   useEffect(() => {
     // Read the real value on mount — the initial `useState(true)` above has
@@ -19,9 +22,13 @@ export function OfflineBanner() {
     // deferred-to-effect reasoning as the iOS check in install-pwa-button.tsx.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOnline(navigator.onLine);
+    setSynced(lastSyncedAt());
 
     const goOnline = () => setOnline(true);
-    const goOffline = () => setOnline(false);
+    const goOffline = () => {
+      setSynced(lastSyncedAt());
+      setOnline(false);
+    };
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
     return () => {
@@ -35,7 +42,10 @@ export function OfflineBanner() {
   return (
     <div className="flex items-center justify-center gap-2 bg-warning/15 px-4 py-1.5 text-center text-xs font-medium text-warning-ink">
       <WifiOff className="size-3.5 shrink-0" />
-      You&apos;re offline — showing the last data synced to this device.
+      <span>
+        You&apos;re offline — this is the last data saved
+        {synced ? ` (${new Date(synced).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })})` : ""}. Go online to get the latest.
+      </span>
     </div>
   );
 }

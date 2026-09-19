@@ -15,6 +15,8 @@ export type LoanStatus =
   | "defaulted"
   | "cancelled";
 
+export type RepaymentPlan = "3_day" | "weekly";
+
 export interface Loan {
   id: number;
   loan_number: string | null;
@@ -27,6 +29,7 @@ export interface Loan {
   credit_limit: string | null;
   total_paid: string;
   interest_rate: string;
+  repayment_plan: RepaymentPlan;
   penalty_amount: string;
   interest_amount: number;
   balance: number;
@@ -61,6 +64,15 @@ export interface PaymentSettings {
 
 export interface NotificationSettings {
   admin_notify_phone: string;
+}
+
+export interface LendingBudgetSettings {
+  lending_budget: string;
+  remaining_budget: number | null;
+}
+
+export interface LoanDefaultsSettings {
+  late_fee_amount: string;
 }
 
 export interface SmsLogEntry {
@@ -138,6 +150,7 @@ export interface LoanFormValues {
   credit_limit: string;
   total_paid: string;
   interest_rate: string;
+  repayment_plan: RepaymentPlan;
   status: LoanStatus;
   notes: string;
   start_date: string;

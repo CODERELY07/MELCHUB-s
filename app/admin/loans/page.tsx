@@ -33,7 +33,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { downloadLoansCsv } from "@/lib/loans-csv";
-import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, SmsLogEntry } from "@/lib/types";
+import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, RepaymentPlan, SmsLogEntry } from "@/lib/types";
 
 const STATUS_OPTIONS: LoanStatus[] = [
   "pending",
@@ -42,6 +42,11 @@ const STATUS_OPTIONS: LoanStatus[] = [
   "overdue",
   "defaulted",
   "cancelled",
+];
+
+const REPAYMENT_PLAN_OPTIONS: { value: RepaymentPlan; label: string }[] = [
+  { value: "weekly", label: "Weekly" },
+  { value: "3_day", label: "3-day" },
 ];
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
@@ -64,6 +69,7 @@ const EMPTY_FORM: LoanFormValues = {
   credit_limit: "",
   total_paid: "0",
   interest_rate: "0",
+  repayment_plan: "weekly",
   status: "pending",
   notes: "",
   start_date: "",
@@ -153,6 +159,7 @@ export default function AdminLoansPage() {
       credit_limit: loan.credit_limit ?? "",
       total_paid: loan.total_paid,
       interest_rate: loan.interest_rate,
+      repayment_plan: loan.repayment_plan ?? "weekly",
       status: loan.status,
       notes: loan.notes ?? "",
       start_date: toDateInputValue(loan.start_date),
@@ -757,6 +764,26 @@ export default function AdminLoansPage() {
                 value={form.interest_rate}
                 onChange={(e) => setForm({ ...form, interest_rate: e.target.value })}
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="repayment_plan">Repayment plan</Label>
+              <Select
+                id="repayment_plan"
+                value={form.repayment_plan}
+                onChange={(e) =>
+                  setForm({ ...form, repayment_plan: e.target.value as RepaymentPlan })
+                }
+              >
+                {REPAYMENT_PLAN_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Sets the wording of due-date reminders and how far a missed payment pushes the due date (3 days or 1 week).
+              </p>
             </div>
 
             <div className="space-y-1.5">

@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import borrowerApi from "@/lib/borrower-axios";
+import { cachedGet, clearCache } from "@/lib/offline-cache";
 import type { Loan } from "@/lib/types";
 
 interface BorrowerAuthContextValue {
@@ -41,11 +42,18 @@ export function BorrowerAuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const res = await borrowerApi.get("/borrower/me");
-      setLoan(res.data);
-      return res.data as Loan;
+      // Falls back to the last saved copy when offline, so the borrower
+      // stays signed in and sees their last-known loan.
+      const data = await cachedGet<Loan>("me", () =>
+        borrowerApi.get("/borrower/me").then((res) => res.data)
+      );
+      setLoan(data);
+      return data;
     } catch {
+      // Reached only for a real rejection (e.g. 401), or offline with
+      // nothing cached yet.
       localStorage.removeItem("borrower_token");
+      clearCache();
       setLoan(null);
       return null;
     } finally {
@@ -68,6 +76,7 @@ export function BorrowerAuthProvider({ children }: { children: ReactNode }) {
       // is what actually signs the borrower out on this device either way.
     } finally {
       localStorage.removeItem("borrower_token");
+      clearCache();
       setLoan(null);
     }
   }, []);
