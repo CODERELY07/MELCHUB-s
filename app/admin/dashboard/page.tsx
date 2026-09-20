@@ -65,9 +65,13 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const totalLoaned = loans.reduce((sum, l) => sum + Number(l.total_loan), 0);
-  const totalPaid = loans.reduce((sum, l) => sum + Number(l.total_paid), 0);
-  const totalOutstanding = loans.reduce((sum, l) => sum + Number(l.balance), 0);
+  // Money figures cover only loans still running — fully paid, cancelled and
+  // defaulted loans are finished, so they don't count as "out" or "owed".
+  const running = loans.filter((l) => !["paid", "cancelled", "defaulted"].includes(l.status));
+  // Principal still unpaid: payments reduce what's out (interest and fees don't add to it).
+  const totalLoaned = running.reduce((sum, l) => sum + Math.max(0, Number(l.total_loan) - Number(l.total_paid)), 0);
+  const totalPaid = running.reduce((sum, l) => sum + Number(l.total_paid), 0);
+  const totalOutstanding = running.reduce((sum, l) => sum + Number(l.balance), 0);
   const overdueCount = loans.filter((l) => l.is_overdue).length;
   const activeCount = loans.filter((l) => l.status === "active").length;
 
@@ -79,19 +83,19 @@ export default function AdminDashboardPage() {
       tone: 1,
     },
     {
-      label: "Total loaned out",
+      label: "Loaned out (unpaid principal)",
       value: formatCurrency(totalLoaned),
       icon: HandCoins,
       tone: 2,
     },
     {
-      label: "Total collected",
+      label: "Collected (active loans)",
       value: formatCurrency(totalPaid),
       icon: Banknote,
       tone: 3,
     },
     {
-      label: "Outstanding balance",
+      label: "Outstanding balance (active)",
       value: formatCurrency(totalOutstanding),
       icon: AlertCircle,
       tone: 4,
