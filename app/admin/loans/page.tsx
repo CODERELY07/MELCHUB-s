@@ -76,6 +76,8 @@ const EMPTY_FORM: LoanFormValues = {
 export default function AdminLoansPage() {
   const plans = useRepaymentPlans("staff");
   const [loans, setLoans] = useState<Loan[] | null>(null);
+  const totalInterest = (loans ?? []).reduce((sum, l) => sum + Number(l.interest_amount), 0);
+  const totalPenalties = (loans ?? []).reduce((sum, l) => sum + Number(l.penalty_amount), 0);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<LoanStatus | "">("");
@@ -413,6 +415,19 @@ export default function AdminLoansPage() {
         </div>
       ) : (
         <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border p-4">
+              <div className="text-xs text-muted-foreground">Total interest (profit)</div>
+              <div className="text-2xl font-bold">{formatCurrency(totalInterest)}</div>
+              <div className="text-xs text-muted-foreground">Across the {loans.length} loan{loans.length === 1 ? "" : "s"} shown</div>
+            </div>
+            <div className="rounded-xl border border-border p-4">
+              <div className="text-xs text-muted-foreground">Late fees charged</div>
+              <div className="text-2xl font-bold">{formatCurrency(totalPenalties)}</div>
+              <div className="text-xs text-muted-foreground">Extra profit on top of interest</div>
+            </div>
+          </div>
+
           {/* Table — md and up, where there's room for every column at once */}
           <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full text-left text-sm">
@@ -421,6 +436,7 @@ export default function AdminLoansPage() {
                   <th className="px-3 py-2 font-medium">Loan #</th>
                   <th className="px-3 py-2 font-medium">Borrower</th>
                   <th className="px-3 py-2 font-medium">Principal</th>
+                  <th className="px-3 py-2 font-medium">Interest</th>
                   <th className="px-3 py-2 font-medium">Paid</th>
                   <th className="px-3 py-2 font-medium">Balance</th>
                   <th className="px-3 py-2 font-medium">Status</th>
@@ -444,6 +460,7 @@ export default function AdminLoansPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2">{formatCurrency(loan.total_loan)}</td>
+                    <td className="px-3 py-2 text-success-ink">{formatCurrency(loan.interest_amount)}</td>
                     <td className="px-3 py-2">{formatCurrency(loan.total_paid)}</td>
                     <td className="px-3 py-2">{formatCurrency(loan.balance)}</td>
                     <td className="px-3 py-2">
@@ -544,10 +561,14 @@ export default function AdminLoansPage() {
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                     <div>
                       <div className="text-xs text-muted-foreground">Principal</div>
                       <div className="font-medium">{formatCurrency(loan.total_loan)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Interest</div>
+                      <div className="font-medium">{formatCurrency(loan.interest_amount)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Paid</div>
