@@ -15,7 +15,18 @@ export type LoanStatus =
   | "defaulted"
   | "cancelled";
 
-export type RepaymentPlan = "3_day" | "weekly";
+/** A repayment plan's `key` — admin-defined, so any string (built-ins: "3_day", "weekly"). */
+export type RepaymentPlan = string;
+
+export interface RepaymentPlanRecord {
+  id: number;
+  key: string;
+  name: string;
+  period_days: number;
+  installments: number;
+  daily_rate: string;
+  is_active: boolean;
+}
 
 export interface Loan {
   id: number;
@@ -30,6 +41,9 @@ export interface Loan {
   total_paid: string;
   interest_rate: string;
   repayment_plan: RepaymentPlan;
+  installments_enabled: boolean;
+  plan_name: string | null;
+  plan_period_days: number;
   penalty_amount: string;
   interest_amount: number;
   balance: number;
@@ -119,7 +133,7 @@ export interface AnalyticsData {
   monthly_collections: { month: string; amount: number }[];
 }
 
-export type LoanRequestPlan = "3_day" | "weekly";
+export type LoanRequestPlan = string;
 export type LoanRequestStatus = "pending" | "accepted" | "declined";
 
 export interface LoanRequest {
@@ -151,6 +165,7 @@ export interface LoanFormValues {
   total_paid: string;
   interest_rate: string;
   repayment_plan: RepaymentPlan;
+  installments_enabled: boolean;
   status: LoanStatus;
   notes: string;
   start_date: string;

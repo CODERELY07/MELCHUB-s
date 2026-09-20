@@ -6,6 +6,7 @@ import { CalendarClock, Loader2, ReceiptText, Upload, WifiOff, Wallet } from "lu
 
 import borrowerApi from "@/lib/borrower-axios";
 import { cachedGet } from "@/lib/offline-cache";
+import { useRepaymentPlans } from "@/lib/use-repayment-plans";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructiv
 
 export default function PortalPayPage() {
   const { loan, refresh } = useBorrowerAuth();
+  const plans = useRepaymentPlans("borrower");
   const [online, setOnline] = useState(true);
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [proofs, setProofs] = useState<PaymentProof[] | null>(null);
@@ -118,14 +120,18 @@ export default function PortalPayPage() {
 
   if (!loan) return null;
 
-  // One installment: 20% of principal plus interest for the plan's period.
-  // Never more than what's actually still owed.
-  const periodDays = loan.repayment_plan === "3_day" ? 3 : 7;
-  const periodLabel = loan.repayment_plan === "3_day" ? "3 days" : "week";
-  const installment = Math.min(
-    loan.balance,
-    Number(loan.total_loan) * (0.2 + (Number(loan.interest_rate) / 100) * periodDays)
-  );
+  // On installments: an even share of the principal (per the plan's
+  // installment count) plus interest for one period, never more than what's
+  // still owed. Off installments: the whole balance by the due date.
+  const periodDays = loan.plan_period_days;
+  const periodLabel = periodDays === 7 ? "week" : `${periodDays} days`;
+  const installmentCount = plans?.find((p) => p.key === loan.repayment_plan)?.installments ?? 5;
+  const installment = loan.installments_enabled
+    ? Math.min(
+        loan.balance,
+        Number(loan.total_loan) * (1 / installmentCount + (Number(loan.interest_rate) / 100) * periodDays)
+      )
+    : loan.balance;
   const nothingOwed = loan.balance <= 0;
 
   return (
@@ -155,10 +161,10 @@ export default function PortalPayPage() {
             </span>
             <div>
               <CardTitle as="h2" className="text-base">
-                Pay for this {periodLabel}
+                {loan.installments_enabled ? `Pay for this ${periodLabel}` : "Pay by your due date"}
               </CardTitle>
               <CardDescription>
-                {loan.repayment_plan === "3_day" ? "3-day" : "Weekly"} plan
+                {loan.installments_enabled ? (loan.plan_name ?? "Installment plan") : "Full payment"}
                 {loan.due_date ? ` · due ${formatDate(loan.due_date)}` : ""}
               </CardDescription>
             </div>

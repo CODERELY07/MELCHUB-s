@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
 import { formatCurrency } from "@/lib/format";
 import { cachedGet } from "@/lib/offline-cache";
+import { installmentRate, useRepaymentPlans } from "@/lib/use-repayment-plans";
 import type { LoanDefaultsSettings, LoanRequest, LoanRequestPlan } from "@/lib/types";
 
 interface LoanRequestModalProps {
@@ -23,39 +24,6 @@ interface LoanRequestModalProps {
 }
 
 /**
- * The two repayment products currently offered — cadence and rate are fixed
- * per product, but every peso figure scales with whatever amount the
- * borrower actually requests (rate is applied to `amount`, computed live as
- * they type). The late penalty is deliberately not a number here — the
- * admin sets that per loan, so this only says one applies.
- */
-const PLANS: {
-  value: LoanRequestPlan;
-  title: string;
-  periods: number;
-  totalLabel: string;
-  cadenceLabel: string;
-  rate: number; // fraction of `amount` per installment (principal share + interest)
-}[] = [
-  {
-    value: "3_day",
-    title: "Option 1 — 3-Day Installment Plan",
-    periods: 5,
-    totalLabel: "15 days total",
-    cadenceLabel: "every 3 days",
-    rate: 0.2 + 0.0075, // 20% of principal + 0.75% interest (0.25%/day × 3 days)
-  },
-  {
-    value: "weekly",
-    title: "Option 2 — 1-Week Installment Plan",
-    periods: 5,
-    totalLabel: "5 weeks total",
-    cadenceLabel: "every week",
-    rate: 0.2 + 0.028, // 20% of principal + 2.80% interest (0.40%/day × 7 days)
-  },
-];
-
-/**
  * Gates a loan request behind actually reading the repayment rules — the
  * submit button stays disabled until the checkbox is checked, same pattern
  * as TermsModal's checkbox + name match. The backend re-validates
@@ -64,6 +32,7 @@ const PLANS: {
  * since a disabled button/input is UX only, not a security boundary.
  */
 export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }: LoanRequestModalProps) {
+  const plans = useRepaymentPlans("borrower", open);
   const [plan, setPlan] = useState<LoanRequestPlan | "">("");
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
@@ -192,14 +161,15 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
             </div>
 
             <div className="flex flex-col gap-3">
-              {PLANS.map((option) => {
-                const installment = amountValid ? numericAmount * option.rate : null;
+              {(plans ?? []).map((option) => {
+                const installment = amountValid ? numericAmount * installmentRate(option) : null;
+                const cadenceLabel = option.period_days === 7 ? "every week" : `every ${option.period_days} days`;
 
                 return (
                   <label
-                    key={option.value}
+                    key={option.key}
                     className={`flex cursor-pointer flex-col gap-1.5 rounded-lg border p-3 text-sm transition-colors ${
-                      plan === option.value ? "border-primary bg-primary/5" : "border-border"
+                      plan === option.key ? "border-primary bg-primary/5" : "border-border"
                     }`}
                   >
                     <div className="flex items-start gap-2">
@@ -207,21 +177,24 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
                         type="radio"
                         name="plan"
                         className="mt-1 size-4"
-                        checked={plan === option.value}
-                        onChange={() => setPlan(option.value)}
+                        checked={plan === option.key}
+                        onChange={() => setPlan(option.key)}
                       />
                       <span className="font-medium">
-                        {option.title} <span className="text-muted-foreground">({option.totalLabel})</span>
+                        {option.name}{" "}
+                        <span className="text-muted-foreground">
+                          ({option.installments} × {option.period_days}-day)
+                        </span>
                       </span>
                     </div>
                     <p className="ml-6 text-muted-foreground">
                       {installment !== null ? (
                         <>
                           <strong className="text-foreground">{formatCurrency(installment)}</strong>{" "}
-                          {option.cadenceLabel}, {option.periods} installments total.
+                          {cadenceLabel}, {option.installments} installments total.
                         </>
                       ) : (
-                        <>Enter an amount above to see your {option.cadenceLabel} installment.</>
+                        <>Enter an amount above to see your {cadenceLabel} installment.</>
                       )}
                     </p>
                   </label>
@@ -245,14 +218,14 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
               <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
                 <li>
                   Each installment must be paid <strong className="text-foreground">on or before its due date</strong>{" "}
-                  (every 3 days or every week, depending on your plan).
+                  (on the schedule of your chosen plan).
                 </li>
                 <li>
                   If you can&apos;t pay by the due date, a{" "}
                   <strong className="text-foreground">
                     late fee{lateFee !== null ? ` of ${formatCurrency(lateFee)}` : ""}
                   </strong>{" "}
-                  is added to your balance and your due date is pushed out by one period (3 days or 1 week).
+                  is added to your balance and your due date is pushed out by one installment period.
                 </li>
                 <li>The late fee can repeat each time an installment is missed, and interest keeps accruing until the loan is fully paid.</li>
                 <li>You&apos;ll get an SMS reminder about your due date and any late fee.</li>

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { useRepaymentPlans } from "@/lib/use-repayment-plans";
 import type { LoanHistoryEntry, LoanRequest, LoanStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
@@ -37,6 +38,7 @@ export default function PortalHomePage() {
   const [latestRequest, setLatestRequest] = useState<LoanRequest | null>(null);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const router = useRouter();
+  const plans = useRepaymentPlans("borrower");
 
   const loadLatestRequest = () => {
     cachedGet("loan-requests", () =>
@@ -112,7 +114,7 @@ export default function PortalHomePage() {
         <Alert>
           <AlertDescription>
             Your request for {formatCurrency(latestRequest.requested_amount)} (
-            {latestRequest.plan === "3_day" ? "3-day" : "weekly"} plan) is pending review.
+            {plans?.find((p) => p.key === latestRequest.plan)?.name ?? latestRequest.plan}) is pending review.
           </AlertDescription>
         </Alert>
       )}

@@ -33,7 +33,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import { downloadLoansCsv } from "@/lib/loans-csv";
-import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, RepaymentPlan, SmsLogEntry } from "@/lib/types";
+import { useRepaymentPlans } from "@/lib/use-repayment-plans";
+import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, SmsLogEntry } from "@/lib/types";
 
 const STATUS_OPTIONS: LoanStatus[] = [
   "pending",
@@ -42,11 +43,6 @@ const STATUS_OPTIONS: LoanStatus[] = [
   "overdue",
   "defaulted",
   "cancelled",
-];
-
-const REPAYMENT_PLAN_OPTIONS: { value: RepaymentPlan; label: string }[] = [
-  { value: "weekly", label: "Weekly" },
-  { value: "3_day", label: "3-day" },
 ];
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
@@ -70,6 +66,7 @@ const EMPTY_FORM: LoanFormValues = {
   total_paid: "0",
   interest_rate: "0",
   repayment_plan: "weekly",
+  installments_enabled: true,
   status: "pending",
   notes: "",
   start_date: "",
@@ -77,6 +74,7 @@ const EMPTY_FORM: LoanFormValues = {
 };
 
 export default function AdminLoansPage() {
+  const plans = useRepaymentPlans("staff");
   const [loans, setLoans] = useState<Loan[] | null>(null);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -160,6 +158,7 @@ export default function AdminLoansPage() {
       total_paid: loan.total_paid,
       interest_rate: loan.interest_rate,
       repayment_plan: loan.repayment_plan ?? "weekly",
+      installments_enabled: loan.installments_enabled ?? true,
       status: loan.status,
       notes: loan.notes ?? "",
       start_date: toDateInputValue(loan.start_date),
@@ -772,18 +771,34 @@ export default function AdminLoansPage() {
                 id="repayment_plan"
                 value={form.repayment_plan}
                 onChange={(e) =>
-                  setForm({ ...form, repayment_plan: e.target.value as RepaymentPlan })
+                  setForm({ ...form, repayment_plan: e.target.value })
                 }
               >
-                {REPAYMENT_PLAN_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
+                {(plans ?? [])
+                  .filter((plan) => plan.is_active || plan.key === form.repayment_plan)
+                  .map((plan) => (
+                    <option key={plan.key} value={plan.key}>
+                      {plan.name}
+                    </option>
+                  ))}
               </Select>
               <p className="text-xs text-muted-foreground">
-                Sets the wording of due-date reminders and how far a missed payment pushes the due date (3 days or 1 week).
+                Sets the wording of due-date reminders and how far a missed payment pushes the due date. Create more plans in Settings.
               </p>
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 rounded border-input"
+                  checked={form.installments_enabled}
+                  onChange={(e) => setForm({ ...form, installments_enabled: e.target.checked })}
+                />
+                <span>
+                  Pays in installments
+                  <span className="block text-xs text-muted-foreground">
+                    Turn off for this borrower to skip late fees and due-date push-outs.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="space-y-1.5">

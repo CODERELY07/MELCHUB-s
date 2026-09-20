@@ -14,6 +14,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { useRepaymentPlans } from "@/lib/use-repayment-plans";
 import type { LoanRequest, LoanRequestStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanRequestStatus, "muted" | "success" | "destructive"> = {
@@ -22,12 +23,9 @@ const STATUS_BADGE: Record<LoanRequestStatus, "muted" | "success" | "destructive
   declined: "destructive",
 };
 
-const PLAN_LABEL: Record<LoanRequest["plan"], string> = {
-  "3_day": "3-day installment",
-  weekly: "Weekly installment",
-};
-
 export default function AdminLoanRequestsPage() {
+  const plans = useRepaymentPlans("staff");
+  const planLabel = (key: string) => plans?.find((p) => p.key === key)?.name ?? key;
   const [requests, setRequests] = useState<LoanRequest[] | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [error, setError] = useState("");
@@ -169,7 +167,7 @@ export default function AdminLoanRequestsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2">{PLAN_LABEL[request.plan]}</td>
+                    <td className="px-3 py-2">{planLabel(request.plan)}</td>
                     <td className="max-w-[240px] px-3 py-2 text-muted-foreground">{request.message || "—"}</td>
                     <td className="px-3 py-2">{formatDate(request.created_at)}</td>
                     <td className="px-3 py-2">
@@ -242,7 +240,7 @@ export default function AdminLoanRequestsPage() {
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Plan</div>
-                      <div>{PLAN_LABEL[request.plan]}</div>
+                      <div>{planLabel(request.plan)}</div>
                     </div>
                   </div>
 
