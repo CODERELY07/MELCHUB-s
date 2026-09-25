@@ -50,7 +50,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { user, loading: staffLoading, refresh: refreshStaff } = useAuth();
-  const { loan, loading: borrowerLoading, refresh: refreshBorrower } = useBorrowerAuth();
+  const { borrower, loading: borrowerLoading, refresh: refreshBorrower } = useBorrowerAuth();
 
   // Already signed in as either — go straight to the right dashboard
   // instead of showing the form again.
@@ -58,10 +58,10 @@ export default function LoginPage() {
     if (staffLoading || borrowerLoading) return;
     if (user) {
       router.replace("/admin/dashboard");
-    } else if (loan) {
+    } else if (borrower) {
       router.replace("/portal");
     }
-  }, [staffLoading, borrowerLoading, user, loan, router]);
+  }, [staffLoading, borrowerLoading, user, borrower, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

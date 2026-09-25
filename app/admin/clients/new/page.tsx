@@ -31,15 +31,15 @@ const EMPTY_FORM: ClientFormValues = {
 };
 
 /**
- * A dedicated page for onboarding a new client/borrower account — name,
- * login, and contact details only, no loan terms. Separate from the "New
- * loan" modal on the Loans table (client/app/admin/loans/page.tsx), which
- * still creates the full record (principal, rate, dates) in one step and is
- * untouched by this page. This one submits to the same POST /loans endpoint
- * (a loan record IS the borrower's account, per docs/loans.md Part 0) but
- * only sends the account fields — LoansController::validated() now accepts
- * total_loan/start_date/due_date as optional for exactly this reason, so the
- * resulting loan has no terms yet until an admin sets them via "Edit loan."
+ * A dedicated page for onboarding a new borrower — name, login, and contact
+ * details only, no loan terms. Separate from the "New loan" modal on the
+ * Loans table (client/app/admin/loans/page.tsx), which can either create
+ * this same kind of bare account (when its "New borrower" toggle is used
+ * with no principal filled in) or add a loan to an existing one. This page
+ * submits to POST /loans with no `total_loan`, so the backend
+ * (LoansController::store()) creates only a Borrower row — a client with
+ * zero loans yet — for a real loan to be added later the same way a second
+ * one would be. See docs/loans.md's borrower/loan split for the full model.
  */
 export default function NewClientPage() {
   const [form, setForm] = useState<ClientFormValues>(EMPTY_FORM);

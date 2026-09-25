@@ -28,16 +28,39 @@ export interface RepaymentPlanRecord {
   is_active: boolean;
 }
 
-export interface Loan {
+/**
+ * A borrower's identity/login — a borrower can have several Loans over
+ * time (pay one off, borrow again later), so this is separate from Loan.
+ */
+export interface Borrower {
   id: number;
-  loan_number: string | null;
   name: string;
   username: string;
   email: string | null;
   phone: string | null;
   location: string | null;
-  total_loan: string;
   credit_limit: string | null;
+  /** Loan::remainingBudget()-capped total across ALL of this borrower's loans combined. */
+  available_credit: number | null;
+  terms_accepted_at: string | null;
+  terms_signature_name: string | null;
+  created_by: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Loan {
+  id: number;
+  borrower_id: number;
+  loan_number: string | null;
+  /** name/username/email/phone/location/credit_limit are read-only pass-throughs from the borrower — see server Loan::name() etc. */
+  name: string;
+  username: string;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  credit_limit: string | null;
+  total_loan: string;
   total_paid: string;
   interest_rate: string;
   repayment_plan: RepaymentPlan;
@@ -47,15 +70,12 @@ export interface Loan {
   penalty_amount: string;
   interest_amount: number;
   balance: number;
-  available_credit: number | null;
   is_overdue: boolean;
   status: LoanStatus;
   notes: string | null;
   start_date: string | null;
   due_date: string | null;
   closed_at: string | null;
-  terms_accepted_at: string | null;
-  terms_signature_name: string | null;
   last_notified_at: string | null;
   created_by: number | null;
   created_at: string;
@@ -138,7 +158,7 @@ export type LoanRequestStatus = "pending" | "accepted" | "declined";
 
 export interface LoanRequest {
   id: number;
-  loan_id: number;
+  borrower_id: number;
   plan: LoanRequestPlan;
   requested_amount: string;
   message: string | null;
@@ -149,11 +169,13 @@ export interface LoanRequest {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
-  loan?: Pick<Loan, "id" | "loan_number" | "name" | "phone" | "status" | "total_loan" | "credit_limit" | "available_credit">;
+  borrower?: Pick<Borrower, "id" | "name" | "username" | "phone" | "credit_limit" | "available_credit">;
   reviewer?: { id: number; name: string } | null;
 }
 
 export interface LoanFormValues {
+  /** Set only when creating a new loan for an EXISTING borrower — identity fields below are then unused. */
+  borrower_id?: number;
   name: string;
   username: string;
   email: string;

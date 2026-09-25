@@ -19,7 +19,7 @@ interface LoanRequestModalProps {
   open: boolean;
   onClose: () => void;
   onSubmitted: (request: LoanRequest) => void;
-  /** Loan::availableCredit() — null means the admin hasn't set a credit_limit yet. */
+  /** Borrower::availableCredit() — null means the admin hasn't set a credit_limit yet. */
   availableCredit: number | null;
 }
 

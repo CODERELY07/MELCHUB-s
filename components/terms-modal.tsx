@@ -9,14 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TERMS_TEXT } from "@/lib/terms";
-import type { Loan } from "@/lib/types";
+import type { Borrower } from "@/lib/types";
 
 interface TermsModalProps {
-  loan: Loan;
-  onAccepted: (loan: Loan) => void;
+  borrower: Borrower;
+  onAccepted: (borrower: Borrower) => void;
 }
 
-export function TermsModal({ loan, onAccepted }: TermsModalProps) {
+export function TermsModal({ borrower, onAccepted }: TermsModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const [agreed, setAgreed] = useState(false);
   const [signatureName, setSignatureName] = useState("");
@@ -34,7 +34,7 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
 
   const nameMatches =
     signatureName.trim().length > 0 &&
-    signatureName.trim().toLowerCase() === loan.name.trim().toLowerCase();
+    signatureName.trim().toLowerCase() === borrower.name.trim().toLowerCase();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +45,7 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
       return;
     }
     if (!nameMatches) {
-      setError(`Please type your full name exactly as "${loan.name}" to sign.`);
+      setError(`Please type your full name exactly as "${borrower.name}" to sign.`);
       return;
     }
 
@@ -75,8 +75,8 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
   return (
     <dialog
       ref={ref}
-      // Acceptance is mandatory — there's no other way out of this loan's
-      // onboarding, so Escape doesn't get to be a silent bypass.
+      // Acceptance is mandatory — there's no other way out of onboarding, so
+      // Escape doesn't get to be a silent bypass.
       onCancel={(e) => e.preventDefault()}
       className="inset-x-0 top-auto bottom-0 m-0 w-full max-w-none rounded-t-2xl rounded-b-none border-t border-border bg-card p-0 text-card-foreground shadow-2xl backdrop:bg-black/60 open:animate-in open:fade-in-0 open:slide-in-from-bottom open:duration-300 sm:inset-0 sm:m-auto sm:w-[calc(100%-2rem)] sm:max-w-lg sm:rounded-xl sm:border-t-0 sm:border sm:open:slide-in-from-bottom-0 sm:open:zoom-in-95 sm:open:duration-150"
     >
@@ -129,7 +129,7 @@ export function TermsModal({ loan, onAccepted }: TermsModalProps) {
             </Label>
             <Input
               id="signature_name"
-              placeholder={loan.name}
+              placeholder={borrower.name}
               value={signatureName}
               onChange={(e) => setSignatureName(e.target.value)}
               required

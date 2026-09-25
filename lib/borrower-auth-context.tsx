@@ -11,14 +11,14 @@ import {
 
 import borrowerApi from "@/lib/borrower-axios";
 import { cachedGet, clearCache } from "@/lib/offline-cache";
-import type { Loan } from "@/lib/types";
+import type { Borrower } from "@/lib/types";
 
 interface BorrowerAuthContextValue {
-  loan: Loan | null;
+  borrower: Borrower | null;
   loading: boolean;
-  refresh: () => Promise<Loan | null>;
+  refresh: () => Promise<Borrower | null>;
   logout: () => Promise<void>;
-  setLoan: (loan: Loan) => void;
+  setBorrower: (borrower: Borrower) => void;
 }
 
 const BorrowerAuthContext = createContext<BorrowerAuthContextValue | undefined>(
@@ -26,7 +26,7 @@ const BorrowerAuthContext = createContext<BorrowerAuthContextValue | undefined>(
 );
 
 export function BorrowerAuthProvider({ children }: { children: ReactNode }) {
-  const [loan, setLoan] = useState<Loan | null>(null);
+  const [borrower, setBorrower] = useState<Borrower | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -36,25 +36,25 @@ export function BorrowerAuthProvider({ children }: { children: ReactNode }) {
         : null;
 
     if (!token) {
-      setLoan(null);
+      setBorrower(null);
       setLoading(false);
       return null;
     }
 
     try {
       // Falls back to the last saved copy when offline, so the borrower
-      // stays signed in and sees their last-known loan.
-      const data = await cachedGet<Loan>("me", () =>
+      // stays signed in and sees their last-known account.
+      const data = await cachedGet<Borrower>("me", () =>
         borrowerApi.get("/borrower/me").then((res) => res.data)
       );
-      setLoan(data);
+      setBorrower(data);
       return data;
     } catch {
       // Reached only for a real rejection (e.g. 401), or offline with
       // nothing cached yet.
       localStorage.removeItem("borrower_token");
       clearCache();
-      setLoan(null);
+      setBorrower(null);
       return null;
     } finally {
       setLoading(false);
@@ -77,12 +77,12 @@ export function BorrowerAuthProvider({ children }: { children: ReactNode }) {
     } finally {
       localStorage.removeItem("borrower_token");
       clearCache();
-      setLoan(null);
+      setBorrower(null);
     }
   }, []);
 
   return (
-    <BorrowerAuthContext.Provider value={{ loan, loading, refresh, logout, setLoan }}>
+    <BorrowerAuthContext.Provider value={{ borrower, loading, refresh, logout, setBorrower }}>
       {children}
     </BorrowerAuthContext.Provider>
   );

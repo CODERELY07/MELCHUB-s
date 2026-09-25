@@ -152,18 +152,18 @@ export default function AdminLoanRequestsPage() {
                   <tr key={request.id}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={request.loan?.name ?? "?"} />
+                        <Avatar name={request.borrower?.name ?? "?"} />
                         <div>
-                          <div className="font-medium">{request.loan?.name}</div>
-                          <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
+                          <div className="font-medium">{request.borrower?.name}</div>
+                          <div className="text-xs text-muted-foreground">@{request.borrower?.username}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-3 py-2">
                       <div className="font-medium">{formatCurrency(request.requested_amount)}</div>
-                      {request.loan?.available_credit != null && (
+                      {request.borrower?.available_credit != null && (
                         <div className="text-xs text-muted-foreground">
-                          {formatCurrency(request.loan.available_credit)} available
+                          {formatCurrency(request.borrower.available_credit)} available
                         </div>
                       )}
                     </td>
@@ -224,10 +224,10 @@ export default function AdminLoanRequestsPage() {
                 <CardContent className="flex flex-col gap-3 pt-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={request.loan?.name ?? "?"} />
+                      <Avatar name={request.borrower?.name ?? "?"} />
                       <div>
-                        <div className="font-medium">{request.loan?.name}</div>
-                        <div className="text-xs text-muted-foreground">{request.loan?.loan_number}</div>
+                        <div className="font-medium">{request.borrower?.name}</div>
+                        <div className="text-xs text-muted-foreground">@{request.borrower?.username}</div>
                       </div>
                     </div>
                     <Badge variant={STATUS_BADGE[request.status]}>{request.status}</Badge>
@@ -244,9 +244,9 @@ export default function AdminLoanRequestsPage() {
                     </div>
                   </div>
 
-                  {request.loan?.available_credit != null && (
+                  {request.borrower?.available_credit != null && (
                     <div className="text-xs text-muted-foreground">
-                      {formatCurrency(request.loan.available_credit)} available
+                      {formatCurrency(request.borrower.available_credit)} available
                     </div>
                   )}
 
@@ -299,7 +299,7 @@ export default function AdminLoanRequestsPage() {
       <Modal
         open={!!declineTarget}
         onClose={() => setDeclineTarget(null)}
-        title={`Decline request from ${declineTarget?.loan?.name ?? ""}`}
+        title={`Decline request from ${declineTarget?.borrower?.name ?? ""}`}
         description="This note is sent to the borrower by SMS exactly as written."
       >
         <form onSubmit={submitDecline} className="flex flex-col gap-4">

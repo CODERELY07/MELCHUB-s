@@ -1,26 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { Wallet, TrendingUp, HandCoins, PiggyBank, FilePlus2, CalendarRange } from "lucide-react";
+import { FilePlus2, ChevronRight } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { LOGIN_PATH } from "@/lib/auth-context";
 import { cachedGet } from "@/lib/offline-cache";
-import { LoanHistoryTable } from "@/components/loan-history-table";
 import { LoanRequestModal } from "@/components/loan-request-modal";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatCard } from "@/components/ui/stat-card";
-import { Avatar } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { useRepaymentPlans } from "@/lib/use-repayment-plans";
-import type { LoanHistoryEntry, LoanRequest, LoanStatus } from "@/lib/types";
+import type { Loan, LoanRequest, LoanStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
   pending: "muted",
@@ -32,13 +29,12 @@ const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "dest
 };
 
 export default function PortalHomePage() {
-  const { loan } = useBorrowerAuth();
-  const [history, setHistory] = useState<LoanHistoryEntry[] | null>(null);
+  const { borrower } = useBorrowerAuth();
+  const [loans, setLoans] = useState<Loan[] | null>(null);
   const [error, setError] = useState("");
   const [latestRequest, setLatestRequest] = useState<LoanRequest | null>(null);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const router = useRouter();
-  const plans = useRepaymentPlans("borrower");
 
   const loadLatestRequest = () => {
     cachedGet("loan-requests", () =>
@@ -52,37 +48,32 @@ export default function PortalHomePage() {
   };
 
   useEffect(() => {
-    cachedGet("history", () =>
-      borrowerApi.get("/borrower/history").then((res) => res.data as LoanHistoryEntry[])
+    cachedGet("loans", () =>
+      borrowerApi.get("/borrower/loans").then((res) => res.data as Loan[])
     )
-      .then(setHistory)
+      .then(setLoans)
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("borrower_token");
           router.push(LOGIN_PATH);
           return;
         }
-        setError("Couldn't load your loan history.");
+        setError("Couldn't load your loans.");
       });
 
     loadLatestRequest();
   }, [router]);
 
-  if (!loan) return null;
+  if (!borrower) return null;
 
   const hasPendingRequest = latestRequest?.status === "pending";
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Avatar name={loan.name} className="size-12 text-base sm:size-14 sm:text-lg" />
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Welcome, {loan.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              Loan {loan.loan_number} · <Badge variant={STATUS_BADGE[loan.status]}>{loan.is_overdue ? "overdue" : loan.status}</Badge>
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Welcome, {borrower.name}</h1>
+          <p className="text-sm text-muted-foreground">Your loans with MELCHUB</p>
         </div>
         <Button
           variant="outline"
@@ -96,12 +87,13 @@ export default function PortalHomePage() {
         </Button>
       </div>
 
-      {loan.available_credit !== null && (
+      {borrower.available_credit !== null && (
         <Alert>
           <AlertDescription>
-            {loan.available_credit > 0 ? (
+            {borrower.available_credit > 0 ? (
               <>
-                You can borrow up to <strong className="text-foreground">{formatCurrency(loan.available_credit)}</strong> right now.
+                You can borrow up to{" "}
+                <strong className="text-foreground">{formatCurrency(borrower.available_credit)}</strong> right now.
               </>
             ) : (
               <>There&apos;s nothing available to borrow right now.</>
@@ -113,8 +105,7 @@ export default function PortalHomePage() {
       {latestRequest?.status === "pending" && (
         <Alert>
           <AlertDescription>
-            Your request for {formatCurrency(latestRequest.requested_amount)} (
-            {plans?.find((p) => p.key === latestRequest.plan)?.name ?? latestRequest.plan}) is pending review.
+            Your request for {formatCurrency(latestRequest.requested_amount)} is pending review.
           </AlertDescription>
         </Alert>
       )}
@@ -126,48 +117,49 @@ export default function PortalHomePage() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Principal" value={formatCurrency(loan.total_loan)} icon={Wallet} tone={1} />
-        <StatCard
-          label={`Interest so far (${loan.interest_rate}%/day)`}
-          value={formatCurrency(loan.interest_amount)}
-          icon={TrendingUp}
-          tone={4}
-        />
-        <StatCard label="Total paid" value={formatCurrency(loan.total_paid)} icon={HandCoins} tone={3} />
-        <StatCard label="Balance remaining" value={formatCurrency(loan.balance)} icon={PiggyBank} tone={2} />
-      </div>
-
-      <Card>
-        <CardHeader className="!flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
-            <CalendarRange className="size-4.5" />
-          </span>
-          <div>
-            <CardTitle as="h2" className="text-base">Loan term</CardTitle>
-            <CardDescription>
-              {formatDate(loan.start_date)} &ndash; {formatDate(loan.due_date)}
-            </CardDescription>
-          </div>
-        </CardHeader>
-      </Card>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <div>
-        <h2 className="mb-2 text-lg font-semibold">History</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Interest builds up day by day based on your rate; payments you make are recorded here as soon as your loan officer confirms them.
-        </p>
+        <h2 className="mb-2 text-lg font-semibold">Your loans</h2>
 
-        {error && (
-          <Alert variant="destructive" className="mb-3">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {!history && !error ? (
-          <Skeleton className="h-40 w-full rounded-lg" />
+        {!loans && !error ? (
+          <div className="flex flex-col gap-3">
+            <Skeleton className="h-20 w-full rounded-lg" />
+            <Skeleton className="h-20 w-full rounded-lg" />
+          </div>
+        ) : loans && loans.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            You don&apos;t have any loans yet. Once your loan officer sets one up, or a request of
+            yours is approved, it&apos;ll show up here.
+          </p>
         ) : (
-          <LoanHistoryTable entries={history ?? []} />
+          <div className="flex flex-col gap-2">
+            {loans?.map((loan) => (
+              <Link key={loan.id} href={`/portal/loans/${loan.id}`}>
+                <Card className="transition-colors hover:bg-muted/40">
+                  <CardContent className="flex items-center justify-between gap-3 pt-4">
+                    <div>
+                      <div className="flex items-center gap-2 font-medium">
+                        {loan.loan_number}
+                        <Badge variant={STATUS_BADGE[loan.status]}>
+                          {loan.is_overdue ? "overdue" : loan.status}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Balance {formatCurrency(loan.balance)}
+                        {loan.due_date ? ` · due ${formatDate(loan.due_date)}` : ""}
+                      </div>
+                    </div>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
         )}
       </div>
 
@@ -178,7 +170,7 @@ export default function PortalHomePage() {
           setLatestRequest(request);
           setRequestModalOpen(false);
         }}
-        availableCredit={loan.available_credit}
+        availableCredit={borrower.available_credit}
       />
     </div>
   );

@@ -28,14 +28,14 @@ function extractErrorMessage(err: unknown, fallback: string): string {
 }
 
 export default function PortalProfilePage() {
-  const { loan, refresh } = useBorrowerAuth();
+  const { borrower, refresh } = useBorrowerAuth();
 
   const [profileForm, setProfileForm] = useState({
-    name: loan?.name ?? "",
-    username: loan?.username ?? "",
-    email: loan?.email ?? "",
-    phone: loan?.phone ?? "",
-    location: loan?.location ?? "",
+    name: borrower?.name ?? "",
+    username: borrower?.username ?? "",
+    email: borrower?.email ?? "",
+    phone: borrower?.phone ?? "",
+    location: borrower?.location ?? "",
   });
   const [profileError, setProfileError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState("");
@@ -50,7 +50,7 @@ export default function PortalProfilePage() {
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
 
-  if (!loan) return null;
+  if (!borrower) return null;
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +89,7 @@ export default function PortalProfilePage() {
   return (
     <div className="flex max-w-lg flex-col gap-6">
       <div className="flex items-center gap-3">
-        <Avatar name={loan.name} className="size-12 text-base" />
+        <Avatar name={borrower.name} className="size-12 text-base" />
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
           <p className="text-sm text-muted-foreground">
@@ -106,7 +106,7 @@ export default function PortalProfilePage() {
             </span>
             <div>
               <CardTitle as="h2" className="text-base">Your details</CardTitle>
-              <CardDescription>Loan {loan.loan_number}</CardDescription>
+              <CardDescription>@{borrower.username}</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -32,9 +32,9 @@ import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
-import { downloadLoansCsv } from "@/lib/loans-csv";
+import { downloadLoansPdf } from "@/lib/loans-pdf";
 import { useRepaymentPlans } from "@/lib/use-repayment-plans";
-import type { Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, SmsLogEntry } from "@/lib/types";
+import type { Borrower, Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, SmsLogEntry } from "@/lib/types";
 
 const STATUS_OPTIONS: LoanStatus[] = [
   "pending",
@@ -76,6 +76,11 @@ const EMPTY_FORM: LoanFormValues = {
 export default function AdminLoansPage() {
   const plans = useRepaymentPlans("staff");
   const [loans, setLoans] = useState<Loan[] | null>(null);
+  const [borrowers, setBorrowers] = useState<Borrower[] | null>(null);
+  // Only relevant while creating (not editing): give a brand-new person a
+  // first loan, or give someone who already has an account another one.
+  const [borrowerMode, setBorrowerMode] = useState<"new" | "existing">("new");
+  const [selectedBorrowerId, setSelectedBorrowerId] = useState<number | "">("");
   const totalInterest = (loans ?? []).reduce((sum, l) => sum + Number(l.interest_amount), 0);
   const totalPenalties = (loans ?? []).reduce((sum, l) => sum + Number(l.penalty_amount), 0);
   const [error, setError] = useState("");
@@ -114,6 +119,17 @@ export default function AdminLoansPage() {
 
   const router = useRouter();
 
+  const loadBorrowers = useCallback(() => {
+    api
+      .get("/borrowers")
+      .then((res) => setBorrowers(res.data))
+      .catch(() => setBorrowers([]));
+  }, []);
+
+  useEffect(() => {
+    loadBorrowers();
+  }, [loadBorrowers]);
+
   const loadLoans = useCallback(() => {
     api
       .get("/loans", { params: { search: search || undefined, status: statusFilter || undefined } })
@@ -142,6 +158,8 @@ export default function AdminLoansPage() {
   const openCreateModal = () => {
     setEditingLoan(null);
     setForm(EMPTY_FORM);
+    setBorrowerMode("new");
+    setSelectedBorrowerId("");
     setFormError("");
     setModalOpen(true);
   };
@@ -178,11 +196,29 @@ export default function AdminLoansPage() {
     const payload: Record<string, unknown> = { ...form };
     if (!payload.password) delete payload.password;
 
+    if (!editingLoan && borrowerMode === "existing") {
+      if (!selectedBorrowerId) {
+        setFormError("Please choose which borrower this loan is for.");
+        setSaving(false);
+        return;
+      }
+      // Loan-terms only — identity fields don't apply to an existing borrower.
+      delete payload.name;
+      delete payload.username;
+      delete payload.email;
+      delete payload.password;
+      delete payload.phone;
+      delete payload.location;
+      delete payload.credit_limit;
+      payload.borrower_id = selectedBorrowerId;
+    }
+
     try {
       if (editingLoan) {
         await api.put(`/loans/${editingLoan.id}`, payload);
       } else {
         await api.post("/loans", payload);
+        loadBorrowers();
       }
       setModalOpen(false);
       loadLoans();
@@ -347,11 +383,11 @@ export default function AdminLoansPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            onClick={() => downloadLoansCsv(loans ?? [])}
+            onClick={() => downloadLoansPdf(loans ?? [])}
             disabled={!loans || loans.length === 0}
           >
             <Download className="size-4" />
-            Export CSV
+            Export PDF
           </Button>
           <Button variant="outline" onClick={handleNotifyAllDue} disabled={notifyingAll}>
             {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
@@ -667,72 +703,134 @@ export default function AdminLoansPage() {
             </Alert>
           )}
 
+          {!editingLoan && (
+            <div className="flex gap-1 rounded-lg border border-border p-1">
+              <Button
+                type="button"
+                size="sm"
+                className="flex-1"
+                variant={borrowerMode === "new" ? "default" : "ghost"}
+                onClick={() => setBorrowerMode("new")}
+              >
+                New borrower
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="flex-1"
+                variant={borrowerMode === "existing" ? "default" : "ghost"}
+                onClick={() => setBorrowerMode("existing")}
+              >
+                Existing borrower
+              </Button>
+            </div>
+          )}
+
+          {!editingLoan && borrowerMode === "existing" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="borrower_id">Borrower</Label>
+              <Select
+                id="borrower_id"
+                required
+                value={selectedBorrowerId}
+                onChange={(e) => setSelectedBorrowerId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">Select a borrower&hellip;</option>
+                {(borrowers ?? []).map((borrower) => (
+                  <option key={borrower.id} value={borrower.id}>
+                    {borrower.name} (@{borrower.username})
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Gives this borrower a new loan without touching their earlier ones.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2 space-y-1.5">
+                <Label htmlFor="name">Full name</Label>
+                <Input
+                  id="name"
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  required
+                  placeholder="Used to log in to the borrower portal"
+                  value={form.username}
+                  onChange={(e) => setForm({ ...form, username: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="email">
+                  Email <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="borrower@gmail.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="password">
+                  Password <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder={editingLoan ? "Leave blank to keep current" : ""}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="location">Location</Label>
+                <Input
+                  id="location"
+                  value={form.location}
+                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="credit_limit">
+                  Credit limit <span className="text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="credit_limit"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="How much this client may borrow in total"
+                  value={form.credit_limit}
+                  onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
-              <Input
-                id="name"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                required
-                placeholder="Used to log in to the borrower portal"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="email">
-                Email <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="borrower@gmail.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="password">
-                Password <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder={editingLoan ? "Leave blank to keep current" : ""}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-              />
-            </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="total_loan">Principal amount</Label>
               <Input
@@ -743,21 +841,6 @@ export default function AdminLoansPage() {
                 required
                 value={form.total_loan}
                 onChange={(e) => setForm({ ...form, total_loan: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="credit_limit">
-                Credit limit <span className="text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="credit_limit"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="How much this client may borrow in total"
-                value={form.credit_limit}
-                onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
               />
             </div>
 

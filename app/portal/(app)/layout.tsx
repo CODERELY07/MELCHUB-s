@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { LayoutDashboard, UserRound, Wallet, Loader2 } from "lucide-react";
+import { LayoutDashboard, UserRound, Loader2 } from "lucide-react";
 
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { LOGIN_PATH } from "@/lib/auth-context";
@@ -10,8 +10,7 @@ import { TermsModal } from "@/components/terms-modal";
 import { AppShell } from "@/components/app-shell";
 
 const NAV_ITEMS = [
-  { href: "/portal", label: "My Loan", icon: LayoutDashboard },
-  { href: "/portal/pay", label: "Pay", icon: Wallet },
+  { href: "/portal", label: "My Loans", icon: LayoutDashboard },
   { href: "/portal/profile", label: "Profile", icon: UserRound },
 ];
 
@@ -20,15 +19,15 @@ export default function PortalAppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { loan, loading, logout, setLoan } = useBorrowerAuth();
+  const { borrower, loading, logout, setBorrower } = useBorrowerAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !loan) {
+    if (!loading && !borrower) {
       router.replace(LOGIN_PATH);
     }
-  }, [loading, loan, router]);
+  }, [loading, borrower, router]);
 
   if (loading) {
     return (
@@ -38,7 +37,7 @@ export default function PortalAppLayout({
     );
   }
 
-  if (!loan) {
+  if (!borrower) {
     return null;
   }
 
@@ -47,8 +46,12 @@ export default function PortalAppLayout({
       <AppShell
         title="My Loan Portal"
         navItems={NAV_ITEMS}
-        isActive={(href) => pathname === href}
-        userLabel={loan.name}
+        // "My Loans" also stays highlighted while viewing/paying a specific
+        // loan (/portal/loans/...) — those pages are reached from that tab.
+        isActive={(href) =>
+          pathname === href || (href === "/portal" && pathname.startsWith("/portal/loans"))
+        }
+        userLabel={borrower.name}
         onLogout={async () => {
           await logout();
           router.push(LOGIN_PATH);
@@ -57,8 +60,8 @@ export default function PortalAppLayout({
         {children}
       </AppShell>
 
-      {!loan.terms_accepted_at && (
-        <TermsModal loan={loan} onAccepted={(updated) => setLoan(updated)} />
+      {!borrower.terms_accepted_at && (
+        <TermsModal borrower={borrower} onAccepted={(updated) => setBorrower(updated)} />
       )}
     </>
   );
