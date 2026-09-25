@@ -8,6 +8,7 @@ import api from "@/lib/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CashAccountsCard } from "@/components/cash-accounts-card";
 import { RepaymentPlansCard } from "@/components/repayment-plans-card";
 import {
   Card,
@@ -368,6 +369,7 @@ export default function AdminSettingsPage() {
         </form>
       </Card>
       <RepaymentPlansCard />
+      <CashAccountsCard />
     </div>
   );
 }

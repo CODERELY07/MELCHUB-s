@@ -18,6 +18,13 @@ export type LoanStatus =
 /** A repayment plan's `key` — admin-defined, so any string (built-ins: "3_day", "weekly"). */
 export type RepaymentPlan = string;
 
+/** An admin-defined "money on hand" account (GCash, a bank, cash in a drawer, …). */
+export interface CashAccount {
+  id: number;
+  name: string;
+  amount: string;
+}
+
 export interface RepaymentPlanRecord {
   id: number;
   key: string;

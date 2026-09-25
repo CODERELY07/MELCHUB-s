@@ -118,8 +118,8 @@ export default function AdminLoanRequestsPage() {
 
       <Alert>
         <AlertDescription>
-          Accepting a request doesn&apos;t change the borrower&apos;s loan numbers — set the real principal,
-          interest rate, and dates on the Loans page afterward.
+          Accepting a request creates the loan right away — active, using the requested amount and the plan
+          they picked. You can adjust it afterward on the Loans page like any other loan.
         </AlertDescription>
       </Alert>
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Banknote, HandCoins, Landmark, TriangleAlert, Users } from "lucide-react";
+import { AlertCircle, Banknote, HandCoins, Landmark, PiggyBank, TriangleAlert, Users, Wallet } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -17,12 +17,13 @@ import { StatCard, type StatTone } from "@/components/ui/stat-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/format";
-import type { LendingBudgetSettings, Loan } from "@/lib/types";
+import type { CashAccount, LendingBudgetSettings, Loan } from "@/lib/types";
 
 export default function AdminDashboardPage() {
   const [loans, setLoans] = useState<Loan[] | null>(null);
   const [error, setError] = useState("");
   const [remainingBudget, setRemainingBudget] = useState<{ remaining: number | null } | null>(null);
+  const [cashAccounts, setCashAccounts] = useState<CashAccount[] | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -38,12 +39,17 @@ export default function AdminDashboardPage() {
         setError("Couldn't load loans.");
       });
 
-    // Admin-only endpoint — a 403 for other staff (or no budget set) just
-    // means the card isn't shown.
+    // Admin-only endpoints — a 403 for other staff just means those cards
+    // aren't shown (no budget set behaves the same way for the budget one).
     api
       .get("/settings/lending-budget")
       .then((res) => setRemainingBudget({ remaining: (res.data as LendingBudgetSettings).remaining_budget }))
       .catch(() => setRemainingBudget(null));
+
+    api
+      .get("/cash-accounts")
+      .then((res) => setCashAccounts(res.data))
+      .catch(() => setCashAccounts(null));
   }, [router]);
 
   if (error) {
@@ -111,6 +117,31 @@ export default function AdminDashboardPage() {
     });
   }
 
+  if (cashAccounts !== null) {
+    // "Money on hand" — cash accounts (GCash, bank, drawer, …) plus what's
+    // currently out on loan at face value, no interest. "Money with
+    // interest" swaps that for the full outstanding balance (principal +
+    // interest + fees still owed), i.e. what's on hand if everything still
+    // out got collected in full. Both let through even with zero accounts
+    // set up (just equal the loan-side figures), so the cards teach
+    // themselves rather than staying hidden until configured.
+    const totalCash = cashAccounts.reduce((sum, a) => sum + Number(a.amount), 0);
+    stats.push(
+      {
+        label: "Money on hand",
+        value: formatCurrency(totalCash + totalLoaned),
+        icon: Wallet,
+        tone: 3,
+      },
+      {
+        label: "Money with interest",
+        value: formatCurrency(totalCash + totalOutstanding),
+        icon: PiggyBank,
+        tone: 4,
+      }
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -120,7 +151,7 @@ export default function AdminDashboardPage() {
         </p>
       </div>
 
-      <div className={`grid grid-cols-2 gap-3 sm:gap-4 ${stats.length > 4 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.label} label={stat.label} value={stat.value} icon={stat.icon} tone={stat.tone} />
         ))}
