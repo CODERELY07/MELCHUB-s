@@ -3,20 +3,25 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { Wallet, TrendingUp, HandCoins, PiggyBank, CalendarRange, Wallet2 } from "lucide-react";
+import { Wallet, TrendingUp, HandCoins, PiggyBank, CalendarRange, CalendarClock, Wallet2 } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { LOGIN_PATH } from "@/lib/auth-context";
 import { cachedGet } from "@/lib/offline-cache";
+import { projectedPayoff } from "@/lib/loan-payoff";
 import { LoanHistoryTable } from "@/components/loan-history-table";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import type { Loan, LoanHistoryEntry, LoanStatus } from "@/lib/types";
+
+const CLOSED_STATUSES: LoanStatus[] = ["paid", "cancelled", "defaulted"];
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
   pending: "muted",
@@ -33,12 +38,16 @@ export default function PortalLoanDetailPage() {
   const [loan, setLoan] = useState<Loan | null>(null);
   const [history, setHistory] = useState<LoanHistoryEntry[] | null>(null);
   const [error, setError] = useState("");
+  const [payoffDate, setPayoffDate] = useState("");
 
   useEffect(() => {
     cachedGet(`loan-${id}`, () =>
       borrowerApi.get(`/borrower/loans/${id}`).then((res) => res.data as Loan)
     )
-      .then(setLoan)
+      .then((data) => {
+        setLoan(data);
+        setPayoffDate((current) => current || toDateInputValue(data.due_date));
+      })
       .catch((err: unknown) => {
         if (isAxiosError(err) && err.response?.status === 401) {
           localStorage.removeItem("borrower_token");
@@ -124,6 +133,41 @@ export default function PortalLoanDetailPage() {
           </div>
         </CardHeader>
       </Card>
+
+      {loan.due_date && !loan.is_overdue && !CLOSED_STATUSES.includes(loan.status) && (
+        <Card>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-3/15 text-data-3">
+              <CalendarClock className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">What would I owe if I paid on...</CardTitle>
+              <CardDescription>Pay earlier than your due date to owe less interest.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="payoff_date">Pay on</Label>
+              <Input
+                id="payoff_date"
+                type="date"
+                min={toDateInputValue(new Date().toISOString())}
+                max={toDateInputValue(loan.due_date)}
+                value={payoffDate}
+                onChange={(e) => setPayoffDate(e.target.value)}
+              />
+            </div>
+            <div className="rounded-lg bg-chart-3/10 p-3 ring-1 ring-chart-3/15">
+              <div className="text-xs text-muted-foreground">
+                Total to pay on {formatDate(payoffDate)}
+              </div>
+              <div className="text-2xl font-bold">
+                {payoffDate ? formatCurrency(projectedPayoff(loan, payoffDate)) : "—"}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div>
         <h2 className="mb-2 text-lg font-semibold">History</h2>

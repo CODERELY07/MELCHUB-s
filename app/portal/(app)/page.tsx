@@ -4,19 +4,22 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { FilePlus2, ChevronRight } from "lucide-react";
+import { FilePlus2, ChevronRight, CalendarClock } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { LOGIN_PATH } from "@/lib/auth-context";
 import { cachedGet } from "@/lib/offline-cache";
+import { combinedPayoff, latestProjectableDueDate } from "@/lib/loan-payoff";
 import { LoanRequestModal } from "@/components/loan-request-modal";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
 import type { Loan, LoanRequest, LoanStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
@@ -34,6 +37,7 @@ export default function PortalHomePage() {
   const [error, setError] = useState("");
   const [latestRequest, setLatestRequest] = useState<LoanRequest | null>(null);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [payoffDate, setPayoffDate] = useState(() => toDateInputValue(new Date().toISOString()));
   const router = useRouter();
 
   const loadLatestRequest = () => {
@@ -121,6 +125,41 @@ export default function PortalHomePage() {
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
+      )}
+
+      {loans && loans.length > 0 && (
+        <Card>
+          <CardHeader className="!flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-3/15 text-data-3">
+              <CalendarClock className="size-4.5" />
+            </span>
+            <div>
+              <CardTitle as="h2" className="text-base">What would I owe in total if I paid on...</CardTitle>
+              <CardDescription>Across all your loans. Each is capped at its own due date.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="max-w-xs space-y-1.5">
+              <Label htmlFor="all_loans_payoff_date">Pay on</Label>
+              <Input
+                id="all_loans_payoff_date"
+                type="date"
+                min={toDateInputValue(new Date().toISOString())}
+                max={latestProjectableDueDate(loans) ?? undefined}
+                value={payoffDate}
+                onChange={(e) => setPayoffDate(e.target.value)}
+              />
+            </div>
+            <div className="rounded-lg bg-chart-3/10 p-3 ring-1 ring-chart-3/15">
+              <div className="text-xs text-muted-foreground">
+                Total across {loans.length} loan{loans.length === 1 ? "" : "s"} on {formatDate(payoffDate)}
+              </div>
+              <div className="text-2xl font-bold">
+                {payoffDate ? formatCurrency(combinedPayoff(loans, payoffDate)) : "—"}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div>
