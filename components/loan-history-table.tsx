@@ -30,10 +30,17 @@ export function LoanHistoryTable({ entries }: { entries: LoanHistoryEntry[] }) {
               </td>
               <td className="px-3 py-2">
                 {entry.type === "interest" ? (
-                  <span>Day {entry.day} interest</span>
+                  <div>
+                    <span>Day {entry.day} interest</span>
+                    {entry.note && (
+                      <div className="mt-1 text-xs text-muted-foreground">{entry.note}</div>
+                    )}
+                  </div>
                 ) : (
                   <div>
-                    <Badge variant="success">Payment</Badge>
+                    <Badge variant={entry.type === "payment" ? "success" : "destructive"}>
+                      {entry.type === "payment" ? "Payment" : "Penalty"}
+                    </Badge>
                     {entry.note && (
                       <div className="mt-1 text-xs text-muted-foreground">
                         {entry.note}

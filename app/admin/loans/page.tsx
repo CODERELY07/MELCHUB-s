@@ -65,9 +65,10 @@ const EMPTY_FORM: LoanFormValues = {
   credit_limit: "",
   total_paid: "0",
   interest_rate: "0",
+  compounds_interest: true,
   repayment_plan: "weekly",
   installments_enabled: true,
-  status: "pending",
+  status: "active",
   notes: "",
   start_date: "",
   due_date: "",
@@ -81,6 +82,9 @@ export default function AdminLoansPage() {
   // first loan, or give someone who already has an account another one.
   const [borrowerMode, setBorrowerMode] = useState<"new" | "existing">("new");
   const [selectedBorrowerId, setSelectedBorrowerId] = useState<number | "">("");
+  // Off for a borrower who'll never use the portal — just a name to track a
+  // loan against, no username/password needed at all.
+  const [needsLogin, setNeedsLogin] = useState(true);
   const totalInterest = (loans ?? []).reduce((sum, l) => sum + Number(l.interest_amount), 0);
   const totalPenalties = (loans ?? []).reduce((sum, l) => sum + Number(l.penalty_amount), 0);
   const [error, setError] = useState("");
@@ -160,15 +164,17 @@ export default function AdminLoansPage() {
     setForm(EMPTY_FORM);
     setBorrowerMode("new");
     setSelectedBorrowerId("");
+    setNeedsLogin(true);
     setFormError("");
     setModalOpen(true);
   };
 
   const openEditModal = (loan: Loan) => {
     setEditingLoan(loan);
+    setNeedsLogin(loan.username !== null);
     setForm({
       name: loan.name,
-      username: loan.username,
+      username: loan.username ?? "",
       email: loan.email ?? "",
       password: "",
       phone: loan.phone ?? "",
@@ -177,6 +183,7 @@ export default function AdminLoansPage() {
       credit_limit: loan.credit_limit ?? "",
       total_paid: loan.total_paid,
       interest_rate: loan.interest_rate,
+      compounds_interest: loan.compounds_interest ?? true,
       repayment_plan: loan.repayment_plan ?? "weekly",
       installments_enabled: loan.installments_enabled ?? true,
       status: loan.status,
@@ -195,6 +202,13 @@ export default function AdminLoansPage() {
 
     const payload: Record<string, unknown> = { ...form };
     if (!payload.password) delete payload.password;
+
+    // No portal login for this borrower — send blank rather than whatever
+    // was previously typed into a now-hidden field.
+    if (!needsLogin && (borrowerMode === "new" || !!editingLoan)) {
+      payload.username = "";
+      delete payload.password;
+    }
 
     if (!editingLoan && borrowerMode === "existing") {
       if (!selectedBorrowerId) {
@@ -490,7 +504,7 @@ export default function AdminLoansPage() {
                         <div>
                           <div className="font-medium">{loan.name}</div>
                           <div className="text-xs text-muted-foreground">
-                            @{loan.username} {loan.phone ? `· ${loan.phone}` : ""}
+                            {loan.username ? `@${loan.username}` : "No login"} {loan.phone ? `· ${loan.phone}` : ""}
                           </div>
                         </div>
                       </div>
@@ -587,7 +601,7 @@ export default function AdminLoansPage() {
                       <div>
                         <div className="font-medium">{loan.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {loan.loan_number} · @{loan.username}
+                          {loan.loan_number} · {loan.username ? `@${loan.username}` : "No login"}
                           {loan.phone ? ` · ${loan.phone}` : ""}
                         </div>
                       </div>
@@ -738,7 +752,7 @@ export default function AdminLoansPage() {
                 <option value="">Select a borrower&hellip;</option>
                 {(borrowers ?? []).map((borrower) => (
                   <option key={borrower.id} value={borrower.id}>
-                    {borrower.name} (@{borrower.username})
+                    {borrower.name} {borrower.username ? `(@${borrower.username})` : "(no login)"}
                   </option>
                 ))}
               </Select>
@@ -758,16 +772,36 @@ export default function AdminLoansPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  required
-                  placeholder="Used to log in to the borrower portal"
-                  value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                />
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 rounded border-input"
+                    checked={needsLogin}
+                    onChange={(e) => setNeedsLogin(e.target.checked)}
+                  />
+                  <span>
+                    This person will use the borrower portal
+                    <span className="block text-xs text-muted-foreground">
+                      Turn off for someone who&apos;ll never log in — just track their loan under their name,
+                      with no username or password to set up.
+                    </span>
+                  </span>
+                </label>
               </div>
+
+              {needsLogin && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    required
+                    placeholder="Used to log in to the borrower portal"
+                    value={form.username}
+                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="email">
@@ -782,18 +816,20 @@ export default function AdminLoansPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="password">
-                  Password <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder={editingLoan ? "Leave blank to keep current" : ""}
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-              </div>
+              {needsLogin && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">
+                    Password <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder={editingLoan ? "Leave blank to keep current" : ""}
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="phone">Phone</Label>
@@ -867,6 +903,22 @@ export default function AdminLoansPage() {
                 value={form.interest_rate}
                 onChange={(e) => setForm({ ...form, interest_rate: e.target.value })}
               />
+              <label className="mt-2 flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 rounded border-input"
+                  checked={form.compounds_interest}
+                  onChange={(e) => setForm({ ...form, compounds_interest: e.target.checked })}
+                />
+                <span>
+                  Compound interest daily
+                  <span className="block text-xs text-muted-foreground">
+                    Each day&apos;s interest is added to the balance, so the next day&apos;s interest is
+                    calculated on that larger amount — not just the original principal. Recorded as a real
+                    entry every day, not just calculated on the spot.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="space-y-1.5">

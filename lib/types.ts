@@ -42,7 +42,8 @@ export interface RepaymentPlanRecord {
 export interface Borrower {
   id: number;
   name: string;
-  username: string;
+  /** null means this person has no portal login — a record-only contact, just tracked for their loan(s). */
+  username: string | null;
   email: string | null;
   phone: string | null;
   location: string | null;
@@ -62,7 +63,7 @@ export interface Loan {
   loan_number: string | null;
   /** name/username/email/phone/location/credit_limit are read-only pass-throughs from the borrower — see server Loan::name() etc. */
   name: string;
-  username: string;
+  username: string | null;
   email: string | null;
   phone: string | null;
   location: string | null;
@@ -70,6 +71,8 @@ export interface Loan {
   total_loan: string;
   total_paid: string;
   interest_rate: string;
+  /** Each day's interest calculated on principal + every prior day's interest, not just the original principal. */
+  compounds_interest: boolean;
   repayment_plan: RepaymentPlan;
   installments_enabled: boolean;
   plan_name: string | null;
@@ -193,6 +196,7 @@ export interface LoanFormValues {
   credit_limit: string;
   total_paid: string;
   interest_rate: string;
+  compounds_interest: boolean;
   repayment_plan: RepaymentPlan;
   installments_enabled: boolean;
   status: LoanStatus;

@@ -39,7 +39,7 @@ export function downloadLoansPdf(loans: Loan[]) {
     body: loans.map((loan) => [
       loan.loan_number ?? "",
       loan.name,
-      loan.username,
+      loan.username ?? "No login",
       loan.phone ?? "",
       formatCurrencyForPdf(loan.total_loan),
       formatCurrencyForPdf(loan.interest_amount),

@@ -33,8 +33,22 @@ export function projectedPayoff(loan: Loan, asOfDate: string): number {
   }
 
   const days = daysBetween(loan.start_date, asOfDate) + 1;
-  const dailyInterest = round2((totalLoan * Number(loan.interest_rate)) / 100);
-  const interestAmount = round2(dailyInterest * days);
+  const rate = Number(loan.interest_rate) / 100;
+  let interestAmount: number;
+
+  if (loan.compounds_interest) {
+    // Mirrors Loan::catchUpInterest() exactly: each day's interest is a % of
+    // the running balance (principal + every prior day's interest), not a
+    // flat amount — so it has to be walked day by day, not multiplied.
+    let balance = totalLoan;
+    for (let i = 0; i < days; i++) {
+      balance = round2(balance + round2(balance * rate));
+    }
+    interestAmount = round2(balance - totalLoan);
+  } else {
+    const dailyInterest = round2(totalLoan * rate);
+    interestAmount = round2(dailyInterest * days);
+  }
 
   return round2(totalLoan + interestAmount + penalty - paid);
 }

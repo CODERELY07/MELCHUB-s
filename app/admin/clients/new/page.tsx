@@ -43,6 +43,7 @@ const EMPTY_FORM: ClientFormValues = {
  */
 export default function NewClientPage() {
   const [form, setForm] = useState<ClientFormValues>(EMPTY_FORM);
+  const [needsLogin, setNeedsLogin] = useState(true);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const router = useRouter();
@@ -53,7 +54,12 @@ export default function NewClientPage() {
     setSaving(true);
 
     const payload: Record<string, unknown> = { ...form };
-    if (!payload.password) delete payload.password;
+    if (!needsLogin) {
+      payload.username = "";
+      delete payload.password;
+    } else if (!payload.password) {
+      delete payload.password;
+    }
 
     try {
       await api.post("/loans", payload);
@@ -89,7 +95,9 @@ export default function NewClientPage() {
             <div>
               <CardTitle as="h2" className="text-base">Client details</CardTitle>
               <CardDescription>
-                This creates their login for the borrower portal.
+                {needsLogin
+                  ? "This creates their login for the borrower portal."
+                  : "No login — just a name and contact details to track their loan(s) under."}
               </CardDescription>
             </div>
           </CardHeader>
@@ -111,16 +119,36 @@ export default function NewClientPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  required
-                  placeholder="Used to log in to the borrower portal"
-                  value={form.username}
-                  onChange={(e) => setForm({ ...form, username: e.target.value })}
-                />
+              <div className="sm:col-span-2">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 size-4 rounded border-input"
+                    checked={needsLogin}
+                    onChange={(e) => setNeedsLogin(e.target.checked)}
+                  />
+                  <span>
+                    This person will use the borrower portal
+                    <span className="block text-xs text-muted-foreground">
+                      Turn off for someone who&apos;ll never log in — just track their loan under their name,
+                      with no username or password to set up.
+                    </span>
+                  </span>
+                </label>
               </div>
+
+              {needsLogin && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    required
+                    placeholder="Used to log in to the borrower portal"
+                    value={form.username}
+                    onChange={(e) => setForm({ ...form, username: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="email">
@@ -135,17 +163,19 @@ export default function NewClientPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="password">
-                  Password <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-              </div>
+              {needsLogin && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="password">
+                    Password <span className="text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="phone">Phone</Label>

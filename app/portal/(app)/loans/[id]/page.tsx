@@ -110,7 +110,7 @@ export default function PortalLoanDetailPage() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Principal" value={formatCurrency(loan.total_loan)} icon={Wallet} tone={1} />
         <StatCard
-          label={`Interest so far (${loan.interest_rate}%/day)`}
+          label={`Interest so far (${loan.interest_rate}%/day${loan.compounds_interest ? ", compounding" : ""})`}
           value={formatCurrency(loan.interest_amount)}
           icon={TrendingUp}
           tone={4}
