@@ -1,9 +1,17 @@
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { LoanHistoryEntry } from "@/lib/types";
 
-export function LoanHistoryTable({ entries }: { entries: LoanHistoryEntry[] }) {
+export function LoanHistoryTable({
+  entries,
+  onRemovePenalty,
+}: {
+  entries: LoanHistoryEntry[];
+  /** Admin only — when given, each late-fee row gets a Remove button. */
+  onRemovePenalty?: (entry: LoanHistoryEntry) => void;
+}) {
   if (entries.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
@@ -50,6 +58,17 @@ export function LoanHistoryTable({ entries }: { entries: LoanHistoryEntry[] }) {
                       <div className="text-xs text-muted-foreground">
                         Recorded by {entry.recorded_by}
                       </div>
+                    )}
+                    {onRemovePenalty && entry.type === "penalty" && entry.id && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        className="mt-1 h-auto px-1 text-xs text-destructive"
+                        onClick={() => onRemovePenalty(entry)}
+                      >
+                        Remove fee
+                      </Button>
                     )}
                   </div>
                 )}

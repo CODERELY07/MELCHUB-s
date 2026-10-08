@@ -10,6 +10,7 @@ import { LOGIN_PATH } from "@/lib/auth-context";
 import { cachedGet } from "@/lib/offline-cache";
 import { projectedPayoff } from "@/lib/loan-payoff";
 import { LoanHistoryTable } from "@/components/loan-history-table";
+import { NextPaymentCard } from "@/components/next-payment-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
+import { formatCurrency, formatDate, toDateInputValue, todayInManila } from "@/lib/format";
 import type { Loan, LoanHistoryEntry, LoanStatus } from "@/lib/types";
 
 const CLOSED_STATUSES: LoanStatus[] = ["paid", "cancelled", "defaulted"];
@@ -87,6 +88,8 @@ export default function PortalLoanDetailPage() {
     );
   }
 
+  const isOpen = !CLOSED_STATUSES.includes(loan.status);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -96,7 +99,8 @@ export default function PortalLoanDetailPage() {
             <Badge variant={STATUS_BADGE[loan.status]}>{loan.is_overdue ? "overdue" : loan.status}</Badge>
           </p>
         </div>
-        {!["paid", "cancelled", "defaulted"].includes(loan.status) && (
+        {/* Open loans with a due date get the Pay button inside the "next payment" card below instead. */}
+        {isOpen && !loan.due_date && (
           <Button
             className="self-start sm:self-auto"
             onClick={() => router.push(`/portal/loans/${loan.id}/pay`)}
@@ -106,6 +110,10 @@ export default function PortalLoanDetailPage() {
           </Button>
         )}
       </div>
+
+      {isOpen && loan.due_date && (
+        <NextPaymentCard loan={loan} onPay={() => router.push(`/portal/loans/${loan.id}/pay`)} />
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Principal" value={formatCurrency(loan.total_loan)} icon={Wallet} tone={1} />
@@ -127,7 +135,8 @@ export default function PortalLoanDetailPage() {
           <div>
             <CardTitle as="h2" className="text-base">Loan term</CardTitle>
             <CardDescription>
-              {formatDate(loan.start_date)} &ndash; {formatDate(loan.due_date)}
+              Started {formatDate(loan.start_date)} &middot; {loan.auto_penalty && loan.installments_enabled ? "next payment due" : "due"}{" "}
+              {formatDate(loan.due_date)}
               {loan.plan_name ? ` · ${loan.plan_name}` : ""}
             </CardDescription>
           </div>
@@ -151,7 +160,7 @@ export default function PortalLoanDetailPage() {
               <Input
                 id="payoff_date"
                 type="date"
-                min={toDateInputValue(new Date().toISOString())}
+                min={todayInManila()}
                 max={toDateInputValue(loan.due_date)}
                 value={payoffDate}
                 onChange={(e) => setPayoffDate(e.target.value)}

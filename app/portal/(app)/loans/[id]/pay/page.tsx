@@ -7,7 +7,6 @@ import { CalendarClock, Loader2, ReceiptText, Upload, WifiOff, Wallet } from "lu
 
 import borrowerApi from "@/lib/borrower-axios";
 import { cachedGet } from "@/lib/offline-cache";
-import { useRepaymentPlans } from "@/lib/use-repayment-plans";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,7 +21,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { Loan, PaymentProof, PaymentProofStatus, PaymentSettings } from "@/lib/types";
+import type { Loan, LoanDefaultsSettings, PaymentProof, PaymentProofStatus, PaymentSettings } from "@/lib/types";
 
 const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructive"> = {
   pending: "muted",
@@ -32,11 +31,11 @@ const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructiv
 
 export default function PortalLoanPayPage() {
   const { id } = useParams<{ id: string }>();
-  const plans = useRepaymentPlans("borrower");
   const [loan, setLoan] = useState<Loan | null>(null);
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [proofs, setProofs] = useState<PaymentProof[] | null>(null);
   const [online, setOnline] = useState(true);
+  const [lateFee, setLateFee] = useState<number | null>(null);
 
   const [amount, setAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -67,6 +66,11 @@ export default function PortalLoanPayPage() {
     )
       .then(setSettings)
       .catch(() => setSettings({ gcash_name: "", gcash_number: "" }));
+    cachedGet("loan-defaults", () =>
+      borrowerApi.get("/settings/loan-defaults").then((res) => res.data as LoanDefaultsSettings)
+    )
+      .then((d) => setLateFee(Number(d.late_fee_amount)))
+      .catch(() => setLateFee(null));
     loadProofs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -131,19 +135,15 @@ export default function PortalLoanPayPage() {
 
   if (!loan) return null;
 
-  // On installments: an even share of the principal (per the plan's
-  // installment count) plus interest for one period, never more than what's
-  // still owed. Off installments: the whole balance by the due date.
-  const periodDays = loan.plan_period_days;
-  const periodLabel = periodDays === 7 ? "week" : `${periodDays} days`;
-  const installmentCount = plans?.find((p) => p.key === loan.repayment_plan)?.installments ?? 5;
-  const installment = loan.installments_enabled
-    ? Math.min(
-        loan.balance,
-        Number(loan.total_loan) * (1 / installmentCount + (Number(loan.interest_rate) / 100) * periodDays)
-      )
-    : loan.balance;
-  const nothingOwed = loan.balance <= 0;
+  // The amount comes from the server (Loan::amount_due_this_week) — the same
+  // number the automatic late-fee check judges the borrower against — so
+  // what's shown here can never drift from what actually gets enforced.
+  const periodLabel = loan.plan_period_days === 7 ? "week" : `${loan.plan_period_days} days`;
+  const amountDue = loan.amount_due_this_week;
+  const pastDue = loan.past_due_amount;
+  const paidUp = amountDue <= 0;
+  const open = !["paid", "cancelled", "defaulted"].includes(loan.status);
+  const autoFee = loan.installments_enabled && loan.auto_penalty && lateFee !== null && lateFee > 0;
 
   return (
     <div className="flex max-w-lg flex-col gap-6">
@@ -164,7 +164,7 @@ export default function PortalLoanPayPage() {
         </Alert>
       )}
 
-      {!nothingOwed && (
+      {open && (
         <Card>
           <CardHeader className="!flex items-center gap-3">
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
@@ -172,7 +172,13 @@ export default function PortalLoanPayPage() {
             </span>
             <div>
               <CardTitle as="h2" className="text-base">
-                {loan.installments_enabled ? `Pay for this ${periodLabel}` : "Pay by your due date"}
+                {pastDue > 0
+                  ? "Payment behind"
+                  : paidUp
+                    ? `Paid up for this ${loan.installments_enabled ? periodLabel : "loan"}`
+                    : loan.installments_enabled
+                      ? `Pay for this ${periodLabel}`
+                      : "Pay by your due date"}
               </CardTitle>
               <CardDescription>
                 {loan.installments_enabled ? (loan.plan_name ?? "Installment plan") : "Full payment"}
@@ -180,13 +186,23 @@ export default function PortalLoanPayPage() {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{online ? formatCurrency(installment) : "—"}</div>
+          <CardContent className="space-y-2">
+            <div className="text-2xl font-bold">{online ? formatCurrency(amountDue) : "—"}</div>
             <p className="text-xs text-muted-foreground">
               {online
-                ? `Balance remaining: ${formatCurrency(loan.balance)}`
+                ? `${pastDue > 0 ? `Includes ${formatCurrency(pastDue)} that was already due. ` : ""}Balance remaining: ${formatCurrency(loan.balance)}`
                 : "Go online to see your current amount due."}
             </p>
+            {online && autoFee && !paidUp && (
+              <p className="text-xs text-muted-foreground">
+                A {formatCurrency(lateFee)} late fee is added automatically if this isn&apos;t paid by the due date.
+              </p>
+            )}
+            {online && !paidUp && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setAmount(String(amountDue))}>
+                Use {formatCurrency(amountDue)} as the amount
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}

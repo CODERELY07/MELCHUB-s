@@ -75,6 +75,14 @@ export interface Loan {
   compounds_interest: boolean;
   repayment_plan: RepaymentPlan;
   installments_enabled: boolean;
+  /** Missed weeks are charged the late fee automatically (the due date rolls forward each week). */
+  auto_penalty: boolean;
+  /** One period's payment: an even share of principal plus that period's interest. */
+  installment_amount: number;
+  /** Still to pay to be caught up as of the next due date (this week's installment + any shortfall). */
+  amount_due_this_week: number;
+  /** The part of that already late — shortfall against weeks that have ended. */
+  past_due_amount: number;
   plan_name: string | null;
   plan_period_days: number;
   penalty_amount: string;
@@ -99,6 +107,8 @@ export interface LoanHistoryEntry {
   day?: number;
   note?: string | null;
   recorded_by?: string | null;
+  /** Penalty rows only — lets the admin remove a fee that shouldn't have been charged. */
+  id?: number;
 }
 
 export interface PaymentSettings {
@@ -199,6 +209,7 @@ export interface LoanFormValues {
   compounds_interest: boolean;
   repayment_plan: RepaymentPlan;
   installments_enabled: boolean;
+  auto_penalty: boolean;
   status: LoanStatus;
   notes: string;
   start_date: string;

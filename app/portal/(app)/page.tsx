@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
+import { formatCurrency, formatDate, todayInManila } from "@/lib/format";
 import type { Loan, LoanRequest, LoanStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
@@ -37,7 +37,7 @@ export default function PortalHomePage() {
   const [error, setError] = useState("");
   const [latestRequest, setLatestRequest] = useState<LoanRequest | null>(null);
   const [requestModalOpen, setRequestModalOpen] = useState(false);
-  const [payoffDate, setPayoffDate] = useState(() => toDateInputValue(new Date().toISOString()));
+  const [payoffDate, setPayoffDate] = useState(() => todayInManila());
   const router = useRouter();
 
   const loadLatestRequest = () => {
@@ -144,7 +144,7 @@ export default function PortalHomePage() {
               <Input
                 id="all_loans_payoff_date"
                 type="date"
-                min={toDateInputValue(new Date().toISOString())}
+                min={todayInManila()}
                 max={latestProjectableDueDate(loans) ?? undefined}
                 value={payoffDate}
                 onChange={(e) => setPayoffDate(e.target.value)}
@@ -189,8 +189,18 @@ export default function PortalHomePage() {
                         </Badge>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        Balance {formatCurrency(loan.balance)}
-                        {loan.due_date ? ` · due ${formatDate(loan.due_date)}` : ""}
+                        {loan.status !== "paid" && loan.status !== "cancelled" && loan.status !== "defaulted" && loan.due_date ? (
+                          loan.amount_due_this_week > 0 ? (
+                            <>
+                              Pay <strong className="text-foreground">{formatCurrency(loan.amount_due_this_week)}</strong> by{" "}
+                              {formatDate(loan.due_date)}
+                            </>
+                          ) : (
+                            <>Paid up · next payment {formatDate(loan.due_date)}</>
+                          )
+                        ) : (
+                          <>Balance {formatCurrency(loan.balance)}</>
+                        )}
                       </div>
                     </div>
                     <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

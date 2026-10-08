@@ -1,21 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  AlertCircle,
-  Banknote,
-  Bell,
-  BellRing,
-  Download,
-  History,
-  Loader2,
-  MessageSquare,
-  Pencil,
-  Plus,
-  Search,
-  Trash2,
-} from "lucide-react";
+import { AlertCircle, BellRing, ChevronsDownUp, ChevronsUpDown, Download, Loader2, Plus, Search } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
@@ -26,15 +13,22 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AdminLoansList, type BorrowerGroup } from "@/components/admin-loans-list";
 import { LoanHistoryTable } from "@/components/loan-history-table";
-import { formatCurrency, formatDate, toDateInputValue } from "@/lib/format";
+import { formatCurrency, toDateInputValue, todayInManila } from "@/lib/format";
 import { downloadLoansPdf } from "@/lib/loans-pdf";
 import { useRepaymentPlans } from "@/lib/use-repayment-plans";
-import type { Borrower, Loan, LoanFormValues, LoanHistoryEntry, LoanStatus, SmsLogEntry } from "@/lib/types";
+import type {
+  Borrower,
+  Loan,
+  LoanFormValues,
+  LoanHistoryEntry,
+  LoanStatus,
+  RepaymentPlanRecord,
+  SmsLogEntry,
+} from "@/lib/types";
 
 const STATUS_OPTIONS: LoanStatus[] = [
   "pending",
@@ -44,15 +38,6 @@ const STATUS_OPTIONS: LoanStatus[] = [
   "defaulted",
   "cancelled",
 ];
-
-const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
-  pending: "muted",
-  active: "default",
-  paid: "success",
-  overdue: "warning",
-  defaulted: "destructive",
-  cancelled: "muted",
-};
 
 const EMPTY_FORM: LoanFormValues = {
   name: "",
@@ -68,11 +53,28 @@ const EMPTY_FORM: LoanFormValues = {
   compounds_interest: true,
   repayment_plan: "weekly",
   installments_enabled: true,
+  auto_penalty: true,
   status: "active",
   notes: "",
   start_date: "",
   due_date: "",
 };
+
+/**
+ * First deadline for a new loan: the start date plus one of the chosen
+ * plan's periods (a weekly plan = 7 days later). Keeps the Due date field
+ * filled in sensibly instead of leaving the admin to count days by hand —
+ * the admin can still overwrite it, after which this stops touching it.
+ */
+function computeDue(start: string, planKey: string, plans: RepaymentPlanRecord[] | null): string | null {
+  const days = plans?.find((p) => p.key === planKey)?.period_days;
+  if (!start || !days) return null;
+
+  const date = new Date(`${start}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return date.toISOString().slice(0, 10);
+}
 
 export default function AdminLoansPage() {
   const plans = useRepaymentPlans("staff");
@@ -85,6 +87,11 @@ export default function AdminLoansPage() {
   // Off for a borrower who'll never use the portal — just a name to track a
   // loan against, no username/password needed at all.
   const [needsLogin, setNeedsLogin] = useState(true);
+  // Once the admin types their own due date, stop auto-filling it from the
+  // start date + plan.
+  const [dueManual, setDueManual] = useState(false);
+  // Which people are expanded to show their individual loans.
+  const [openIds, setOpenIds] = useState<Set<number>>(new Set());
   const totalInterest = (loans ?? []).reduce((sum, l) => sum + Number(l.interest_amount), 0);
   const totalPenalties = (loans ?? []).reduce((sum, l) => sum + Number(l.penalty_amount), 0);
   const [error, setError] = useState("");
@@ -123,6 +130,58 @@ export default function AdminLoansPage() {
 
   const router = useRouter();
 
+  // One entry per person, newest-loan first. People with no loans yet are
+  // included too (so a freshly added client doesn't seem to vanish), but only
+  // while nothing is filtered — a search/status filter is about loans.
+  const groups = useMemo<BorrowerGroup[]>(() => {
+    const map = new Map<number, BorrowerGroup>();
+
+    for (const loan of loans ?? []) {
+      const group = map.get(loan.borrower_id) ?? {
+        borrowerId: loan.borrower_id,
+        name: loan.name,
+        username: loan.username,
+        phone: loan.phone,
+        loans: [],
+      };
+      group.loans.push(loan);
+      map.set(loan.borrower_id, group);
+    }
+
+    if (!search && !statusFilter) {
+      for (const borrower of borrowers ?? []) {
+        if (!map.has(borrower.id)) {
+          map.set(borrower.id, {
+            borrowerId: borrower.id,
+            name: borrower.name,
+            username: borrower.username,
+            phone: borrower.phone,
+            loans: [],
+          });
+        }
+      }
+    }
+
+    return [...map.values()];
+  }, [loans, borrowers, search, statusFilter]);
+
+  // While searching/filtering, everything is expanded — the point of a
+  // search is to see the matching loans, not to click through to them.
+  const forceOpen = Boolean(search || statusFilter);
+  const isOpen = (borrowerId: number) => forceOpen || openIds.has(borrowerId);
+  const expandable = groups.filter((g) => g.loans.length > 0);
+  const allOpen = expandable.length > 0 && expandable.every((g) => openIds.has(g.borrowerId));
+
+  const toggleGroup = (borrowerId: number) =>
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(borrowerId)) next.delete(borrowerId);
+      else next.add(borrowerId);
+      return next;
+    });
+
+  const toggleAll = () => setOpenIds(allOpen ? new Set() : new Set(expandable.map((g) => g.borrowerId)));
+
   const loadBorrowers = useCallback(() => {
     api
       .get("/borrowers")
@@ -159,11 +218,18 @@ export default function AdminLoansPage() {
     return () => clearTimeout(timeout);
   }, [loadLoans]);
 
-  const openCreateModal = () => {
+  const openCreateModal = (borrowerId?: number) => {
     setEditingLoan(null);
-    setForm(EMPTY_FORM);
-    setBorrowerMode("new");
-    setSelectedBorrowerId("");
+    const start = todayInManila();
+    setForm({
+      ...EMPTY_FORM,
+      start_date: start,
+      due_date: computeDue(start, EMPTY_FORM.repayment_plan, plans) ?? "",
+    });
+    setDueManual(false);
+    // "New loan" on a person's row jumps straight to giving *them* one.
+    setBorrowerMode(borrowerId ? "existing" : "new");
+    setSelectedBorrowerId(borrowerId ?? "");
     setNeedsLogin(true);
     setFormError("");
     setModalOpen(true);
@@ -171,6 +237,7 @@ export default function AdminLoansPage() {
 
   const openEditModal = (loan: Loan) => {
     setEditingLoan(loan);
+    setDueManual(true);
     setNeedsLogin(loan.username !== null);
     setForm({
       name: loan.name,
@@ -186,6 +253,7 @@ export default function AdminLoansPage() {
       compounds_interest: loan.compounds_interest ?? true,
       repayment_plan: loan.repayment_plan ?? "weekly",
       installments_enabled: loan.installments_enabled ?? true,
+      auto_penalty: loan.auto_penalty ?? false,
       status: loan.status,
       notes: loan.notes ?? "",
       start_date: toDateInputValue(loan.start_date),
@@ -193,6 +261,14 @@ export default function AdminLoansPage() {
     });
     setFormError("");
     setModalOpen(true);
+  };
+
+  // Creating a loan: keep Due date following Start date + plan until the
+  // admin picks one themselves. Never touches an existing loan's dates.
+  const withAutoDue = (next: LoanFormValues): LoanFormValues => {
+    if (editingLoan || dueManual) return next;
+    const due = computeDue(next.start_date, next.repayment_plan, plans);
+    return due ? { ...next, due_date: due } : next;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,7 +328,7 @@ export default function AdminLoansPage() {
   };
 
   const handleDelete = async (loan: Loan) => {
-    if (!window.confirm(`Delete the loan for ${loan.name}? This can't be undone.`)) {
+    if (!window.confirm(`Delete loan ${loan.loan_number} for ${loan.name}? This can't be undone.`)) {
       return;
     }
 
@@ -284,6 +360,23 @@ export default function AdminLoansPage() {
       .get(`/loans/${loan.id}/sms-log`)
       .then((res) => setSmsLog(res.data))
       .catch(() => setSmsLogError("Couldn't load this loan's message log."));
+  };
+
+  const handleRemovePenalty = async (entry: LoanHistoryEntry) => {
+    if (!historyLoan || !entry.id) return;
+    if (!window.confirm(`Remove this ${formatCurrency(entry.amount)} late fee from ${historyLoan.loan_number}?`)) {
+      return;
+    }
+
+    setHistoryError("");
+    try {
+      await api.delete(`/loans/${historyLoan.id}/penalties/${entry.id}`);
+      const res = await api.get(`/loans/${historyLoan.id}/history`);
+      setHistoryEntries(res.data);
+      loadLoans();
+    } catch {
+      setHistoryError("Couldn't remove that late fee.");
+    }
   };
 
   const openPaymentModal = (loan: Loan) => {
@@ -407,7 +500,7 @@ export default function AdminLoansPage() {
             {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
             Notify all due
           </Button>
-          <Button onClick={openCreateModal}>
+          <Button onClick={() => openCreateModal()}>
             <Plus className="size-4" />
             New loan
           </Button>
@@ -436,6 +529,12 @@ export default function AdminLoansPage() {
             </option>
           ))}
         </Select>
+        {!forceOpen && expandable.length > 1 && (
+          <Button variant="outline" onClick={toggleAll} className="sm:ml-auto">
+            {allOpen ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
+            {allOpen ? "Collapse all" : "Expand all"}
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -459,7 +558,7 @@ export default function AdminLoansPage() {
         <div className="flex justify-center rounded-xl border border-border py-8">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
-      ) : loans.length === 0 ? (
+      ) : groups.length === 0 ? (
         <div className="rounded-xl border border-border py-8 text-center text-sm text-muted-foreground">
           {search || statusFilter ? "No loans match your search/filter." : "No loans yet. Create the first one."}
         </div>
@@ -478,229 +577,22 @@ export default function AdminLoansPage() {
             </div>
           </div>
 
-          {/* Table — md and up, where there's room for every column at once */}
-          <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Loan #</th>
-                  <th className="px-3 py-2 font-medium">Borrower</th>
-                  <th className="px-3 py-2 font-medium">Principal</th>
-                  <th className="px-3 py-2 font-medium">Interest</th>
-                  <th className="px-3 py-2 font-medium">Paid</th>
-                  <th className="px-3 py-2 font-medium">Balance</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Due</th>
-                  <th className="px-3 py-2 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {loans.map((loan) => (
-                  <tr key={loan.id}>
-                    <td className="px-3 py-2 font-mono text-xs">{loan.loan_number}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={loan.name} />
-                        <div>
-                          <div className="font-medium">{loan.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {loan.username ? `@${loan.username}` : "No login"} {loan.phone ? `· ${loan.phone}` : ""}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2">{formatCurrency(loan.total_loan)}</td>
-                    <td className="px-3 py-2 text-success-ink">{formatCurrency(loan.interest_amount)}</td>
-                    <td className="px-3 py-2">{formatCurrency(loan.total_paid)}</td>
-                    <td className="px-3 py-2">{formatCurrency(loan.balance)}</td>
-                    <td className="px-3 py-2">
-                      <Badge variant={STATUS_BADGE[loan.status]}>
-                        {loan.is_overdue ? "overdue" : loan.status}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2">{formatDate(loan.due_date)}</td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleNotify(loan)}
-                          disabled={notifyingId === loan.id || !loan.phone}
-                          aria-label={`Notify ${loan.name}`}
-                          title={loan.phone ? undefined : "No phone number on file"}
-                        >
-                          {notifyingId === loan.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Bell className="size-3.5" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openMessageModal(loan)}
-                          disabled={!loan.phone}
-                          aria-label={`Message ${loan.name}`}
-                          title={loan.phone ? undefined : "No phone number on file"}
-                        >
-                          <MessageSquare className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openPaymentModal(loan)}
-                          aria-label={`Record payment for ${loan.name}`}
-                        >
-                          <Banknote className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openHistoryModal(loan)}
-                          aria-label={`View history for ${loan.name}`}
-                        >
-                          <History className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => openEditModal(loan)}
-                          aria-label={`Edit loan for ${loan.name}`}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() => handleDelete(loan)}
-                          disabled={deletingId === loan.id}
-                          aria-label={`Delete loan for ${loan.name}`}
-                        >
-                          {deletingId === loan.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-3.5" />
-                          )}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Cards — below md, where a 900px-wide table would only mean sideways scrolling */}
-          <div className="flex flex-col gap-3 md:hidden">
-            {loans.map((loan) => (
-              <Card key={loan.id}>
-                <CardContent className="flex flex-col gap-3 pt-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <Avatar name={loan.name} />
-                      <div>
-                        <div className="font-medium">{loan.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {loan.loan_number} · {loan.username ? `@${loan.username}` : "No login"}
-                          {loan.phone ? ` · ${loan.phone}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant={STATUS_BADGE[loan.status]}>
-                      {loan.is_overdue ? "overdue" : loan.status}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                    <div>
-                      <div className="text-xs text-muted-foreground">Principal</div>
-                      <div className="font-medium">{formatCurrency(loan.total_loan)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Interest</div>
-                      <div className="font-medium">{formatCurrency(loan.interest_amount)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Paid</div>
-                      <div className="font-medium">{formatCurrency(loan.total_paid)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Balance</div>
-                      <div className="font-medium">{formatCurrency(loan.balance)}</div>
-                    </div>
-                  </div>
-
-                  <div className="text-xs text-muted-foreground">
-                    Due {formatDate(loan.due_date)}
-                  </div>
-
-                  <div className="flex flex-wrap gap-1 border-t border-border pt-3">
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      onClick={() => handleNotify(loan)}
-                      disabled={notifyingId === loan.id || !loan.phone}
-                      aria-label={`Notify ${loan.name}`}
-                      title={loan.phone ? undefined : "No phone number on file"}
-                    >
-                      {notifyingId === loan.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Bell className="size-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      onClick={() => openMessageModal(loan)}
-                      disabled={!loan.phone}
-                      aria-label={`Message ${loan.name}`}
-                      title={loan.phone ? undefined : "No phone number on file"}
-                    >
-                      <MessageSquare className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      onClick={() => openPaymentModal(loan)}
-                      aria-label={`Record payment for ${loan.name}`}
-                    >
-                      <Banknote className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      onClick={() => openHistoryModal(loan)}
-                      aria-label={`View history for ${loan.name}`}
-                    >
-                      <History className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      onClick={() => openEditModal(loan)}
-                      aria-label={`Edit loan for ${loan.name}`}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-lg"
-                      onClick={() => handleDelete(loan)}
-                      disabled={deletingId === loan.id}
-                      aria-label={`Delete loan for ${loan.name}`}
-                    >
-                      {deletingId === loan.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-4" />
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <AdminLoansList
+            groups={groups}
+            isOpen={isOpen}
+            onToggle={toggleGroup}
+            onNewLoan={openCreateModal}
+            handlers={{
+              notifyingId,
+              deletingId,
+              onNotify: handleNotify,
+              onMessage: openMessageModal,
+              onPayment: openPaymentModal,
+              onHistory: openHistoryModal,
+              onEdit: openEditModal,
+              onDelete: handleDelete,
+            }}
+          />
         </>
       )}
 
@@ -926,9 +818,7 @@ export default function AdminLoansPage() {
               <Select
                 id="repayment_plan"
                 value={form.repayment_plan}
-                onChange={(e) =>
-                  setForm({ ...form, repayment_plan: e.target.value })
-                }
+                onChange={(e) => setForm(withAutoDue({ ...form, repayment_plan: e.target.value }))}
               >
                 {(plans ?? [])
                   .filter((plan) => plan.is_active || plan.key === form.repayment_plan)
@@ -952,6 +842,25 @@ export default function AdminLoansPage() {
                   Pays in installments
                   <span className="block text-xs text-muted-foreground">
                     Turn off for this borrower to skip late fees and due-date push-outs.
+                  </span>
+                </span>
+              </label>
+              <label
+                className={`mt-2 flex items-start gap-2 text-sm ${form.installments_enabled ? "" : "opacity-50"}`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-4 rounded border-input"
+                  checked={form.auto_penalty && form.installments_enabled}
+                  disabled={!form.installments_enabled}
+                  onChange={(e) => setForm({ ...form, auto_penalty: e.target.checked })}
+                />
+                <span>
+                  Charge the late fee automatically
+                  <span className="block text-xs text-muted-foreground">
+                    Every week, if the total paid is below what should be paid by then, the late fee from Settings is
+                    added by itself and the next week&apos;s deadline begins. Never charges for weeks before this was
+                    turned on.
                   </span>
                 </span>
               </label>
@@ -981,19 +890,30 @@ export default function AdminLoansPage() {
                 type="date"
                 required
                 value={form.start_date}
-                onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                onChange={(e) => setForm(withAutoDue({ ...form, start_date: e.target.value }))}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="due_date">Due date</Label>
+              <Label htmlFor="due_date">{form.auto_penalty && form.installments_enabled ? "First payment due" : "Due date"}</Label>
               <Input
                 id="due_date"
                 type="date"
                 required
                 value={form.due_date}
-                onChange={(e) => setForm({ ...form, due_date: e.target.value })}
+                onChange={(e) => {
+                  setDueManual(true);
+                  setForm({ ...form, due_date: e.target.value });
+                }}
               />
+              {!editingLoan && !dueManual && (
+                <p className="text-xs text-muted-foreground">Set from the start date and plan — change it if needed.</p>
+              )}
+              {form.auto_penalty && form.installments_enabled && (
+                <p className="text-xs text-muted-foreground">
+                  The next payment date moves forward by itself every period after this.
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2 space-y-1.5">
@@ -1043,7 +963,7 @@ export default function AdminLoansPage() {
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <LoanHistoryTable entries={historyEntries ?? []} />
+          <LoanHistoryTable entries={historyEntries ?? []} onRemovePenalty={handleRemovePenalty} />
         )}
 
         <div className="mt-6">

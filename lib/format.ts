@@ -28,3 +28,18 @@ export function toDateInputValue(value: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
 }
+
+/**
+ * Today's date in the Philippines as "YYYY-MM-DD" — the same calendar day the
+ * server treats as "today" (config/app.php timezone = Asia/Manila), whatever
+ * timezone the viewer's device is set to. Using the UTC date here instead
+ * would be a day behind between midnight and 8:00 AM Manila time.
+ */
+export function todayInManila(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
