@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { TERMS_TEXT } from "@/lib/terms";
+import { useI18n } from "@/lib/i18n";
 import type { Borrower } from "@/lib/types";
 
 interface TermsModalProps {
@@ -18,6 +19,7 @@ interface TermsModalProps {
 
 export function TermsModal({ borrower, onAccepted }: TermsModalProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  const { t, rich } = useI18n();
   const [agreed, setAgreed] = useState(false);
   const [signatureName, setSignatureName] = useState("");
   const [error, setError] = useState("");
@@ -41,11 +43,11 @@ export function TermsModal({ borrower, onAccepted }: TermsModalProps) {
     setError("");
 
     if (!agreed) {
-      setError("Please check the box to confirm you agree to the terms.");
+      setError(t("terms.errorAgree"));
       return;
     }
     if (!nameMatches) {
-      setError(`Please type your full name exactly as "${borrower.name}" to sign.`);
+      setError(t("terms.errorName", { name: borrower.name }));
       return;
     }
 
@@ -64,7 +66,7 @@ export function TermsModal({ borrower, onAccepted }: TermsModalProps) {
     } catch (err: unknown) {
       setError(
         (isAxiosError(err) && err.response?.data?.message) ||
-          "Couldn't save your agreement. Please try again."
+          t("terms.errorSave")
       );
     } finally {
       setSubmitting(false);
@@ -83,10 +85,11 @@ export function TermsModal({ borrower, onAccepted }: TermsModalProps) {
       <form onSubmit={handleSubmit} className="flex max-h-[90vh] flex-col sm:max-h-[85vh]">
         <div className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-muted sm:hidden" aria-hidden="true" />
         <div className="border-b border-border p-6 pb-4">
-          <h2 className="text-lg font-semibold">Terms & Conditions</h2>
-          <p className="text-sm text-muted-foreground">
-            Please review and agree before continuing.
-          </p>
+          <h2 className="text-lg font-semibold">{t("terms.title")}</h2>
+          <p className="text-sm text-muted-foreground">{t("terms.subtitle")}</p>
+          {t("terms.englishNote") && (
+            <p className="mt-1 text-xs text-muted-foreground">{t("terms.englishNote")}</p>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -110,50 +113,51 @@ export function TermsModal({ borrower, onAccepted }: TermsModalProps) {
               onChange={(e) => setAgreed(e.target.checked)}
             />
             <span>
-              I have read and agree to the{" "}
-              <a
-                href="/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-primary underline underline-offset-2"
-              >
-                Terms &amp; Conditions
-              </a>
-              .
+              {rich("terms.agree", {
+                link: (
+                  <a
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-primary underline underline-offset-2"
+                  >
+                    {t("terms.link")}
+                  </a>
+                ),
+              })}
             </span>
           </label>
 
           <div className="space-y-1.5">
-            <Label htmlFor="signature_name">
-              Type your full name as your signature
-            </Label>
+            <Label htmlFor="signature_name">{t("terms.signLabel")}</Label>
             <Input
               id="signature_name"
-              placeholder={borrower.name}
+              autoComplete="name"
               value={signatureName}
               onChange={(e) => setSignatureName(e.target.value)}
+              aria-describedby="signature_hint"
               required
             />
+            <p id="signature_hint" className="text-xs text-muted-foreground">
+              {t("terms.signHint", { name: borrower.name })}
+            </p>
           </div>
 
           {confirming ? (
             <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/40 p-3">
-              <p className="text-sm font-medium">
-                Are you sure you agree to the Terms &amp; Conditions? Your typed name will serve as your
-                electronic signature.
-              </p>
+              <p className="text-sm font-medium">{t("terms.confirm")}</p>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" className="flex-1" onClick={() => setConfirming(false)} disabled={submitting}>
-                  Go back
+                  {t("terms.goBack")}
                 </Button>
                 <Button type="submit" className="flex-1" disabled={submitting}>
-                  {submitting ? "Saving..." : "Yes, I agree"}
+                  {submitting ? t("terms.saving") : t("terms.yes")}
                 </Button>
               </div>
             </div>
           ) : (
             <Button type="submit" className="w-full">
-              I Agree &amp; Sign
+              {t("terms.submit")}
             </Button>
           )}
         </div>

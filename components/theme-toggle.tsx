@@ -5,6 +5,7 @@ import { Moon, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getEffectiveTheme, setTheme, type Theme } from "@/lib/theme";
+import { useI18n } from "@/lib/i18n";
 
 interface ThemeToggleProps {
   className?: string;
@@ -15,6 +16,7 @@ export function ThemeToggle({ className, iconOnly = false }: ThemeToggleProps) {
   // Real theme is only known once mounted (see THEME_INIT_SCRIPT in
   // app/layout.tsx) — this default just needs to render something inert
   // for the one server-rendered frame before that effect runs.
+  const { t } = useI18n();
   const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function ThemeToggle({ className, iconOnly = false }: ThemeToggleProps) {
     setThemeState(next);
   };
 
-  const label = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  const label = theme === "dark" ? t("theme.toLight") : t("theme.toDark");
 
   return (
     <Button
@@ -44,7 +46,7 @@ export function ThemeToggle({ className, iconOnly = false }: ThemeToggleProps) {
       title={iconOnly ? label : undefined}
     >
       {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-      {!iconOnly && (theme === "dark" ? "Light mode" : "Dark mode")}
+      {!iconOnly && (theme === "dark" ? t("theme.light") : t("theme.dark"))}
     </Button>
   );
 }

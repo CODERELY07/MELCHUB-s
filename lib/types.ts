@@ -53,6 +53,8 @@ export interface Borrower {
   terms_accepted_at: string | null;
   terms_signature_name: string | null;
   created_by: number | null;
+  /** Admin list only (GET /borrowers) — how many loans this person has, any status. */
+  loans_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -79,6 +81,8 @@ export interface Loan {
   auto_penalty: boolean;
   /** One period's payment: an even share of principal plus that period's interest. */
   installment_amount: number;
+  /** How many payments the plan has — one row each in the borrower's schedule. */
+  plan_installments: number;
   /** Still to pay to be caught up as of the next due date (this week's installment + any shortfall). */
   amount_due_this_week: number;
   /** The part of that already late — shortfall against weeks that have ended. */
@@ -107,6 +111,8 @@ export interface LoanHistoryEntry {
   day?: number;
   note?: string | null;
   recorded_by?: string | null;
+  /** Compounding interest rows only — the balance right after that day's interest. */
+  balance?: number;
   /** Penalty rows only — lets the admin remove a fee that shouldn't have been charged. */
   id?: number;
 }
@@ -143,7 +149,9 @@ export type PaymentProofStatus = "pending" | "approved" | "rejected";
 
 export interface PaymentProof {
   id: number;
-  loan_id: number;
+  /** Null for a receipt covering all of the borrower's loans — split when approved. */
+  loan_id: number | null;
+  borrower_id: number | null;
   amount: string;
   file_path: string;
   file_url: string;
@@ -154,8 +162,17 @@ export interface PaymentProof {
   loan_payment_id: number | null;
   created_at: string;
   updated_at: string;
-  loan?: Pick<Loan, "id" | "loan_number" | "name" | "phone">;
+  loan?: Pick<Loan, "id" | "loan_number" | "name" | "phone"> | null;
+  borrower?: { id: number; name: string; phone: string | null } | null;
   reviewer?: { id: number; name: string } | null;
+}
+
+/** One loan's share of a payment made for all of a person's loans. */
+export interface PaymentAllocation {
+  loan_id: number;
+  loan_number: string;
+  amount: number;
+  payment_id: number;
 }
 
 export interface AnalyticsData {

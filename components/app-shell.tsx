@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { InstallPwaButton } from "@/components/install-pwa-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { OfflineBanner } from "@/components/offline-banner";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export interface AppShellNavItem {
@@ -53,6 +55,7 @@ export function AppShell({
   onLogout,
   children,
 }: AppShellProps) {
+  const { t } = useI18n();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreTabRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -110,12 +113,13 @@ export function AppShell({
       ))}
 
       <div className="mt-auto flex flex-col gap-2 border-t border-sidebar-border pt-4">
-        <div className="truncate px-2 text-xs text-muted-foreground">{userLabel}</div>
+        <div className="truncate px-2 text-xs text-muted-foreground">{t("shell.signedInAs", { name: userLabel })}</div>
+        <LanguageToggle />
         <InstallPwaButton />
         <ThemeToggle />
         <Button variant="ghost" className="justify-start" onClick={onLogout}>
           <LogOut className="size-4" />
-          Log out
+          {t("shell.logOut")}
         </Button>
       </div>
     </>
@@ -140,7 +144,7 @@ export function AppShell({
           className="fixed inset-0 z-50 lg:hidden"
           role="dialog"
           aria-modal="true"
-          aria-label="More"
+          aria-label={t("shell.more")}
         >
           <div
             className="absolute inset-0 animate-in bg-black/50 fade-in-0"
@@ -153,12 +157,12 @@ export function AppShell({
             <div className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-sidebar-accent" aria-hidden="true" />
 
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-sm font-semibold text-sidebar-foreground">More</span>
+              <span className="text-sm font-semibold text-sidebar-foreground">{t("shell.more")}</span>
               <button
                 ref={closeButtonRef}
                 type="button"
                 onClick={closeSheet}
-                aria-label="Close menu"
+                aria-label={t("shell.closeMenu")}
                 className="flex size-8 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent"
               >
                 <X className="size-4" />
@@ -187,12 +191,13 @@ export function AppShell({
             )}
 
             <div className="flex flex-col gap-2 pt-3">
-              <div className="truncate px-2 text-xs text-muted-foreground">{userLabel}</div>
+              <div className="truncate px-2 text-xs text-muted-foreground">{t("shell.signedInAs", { name: userLabel })}</div>
+              <LanguageToggle />
               <InstallPwaButton />
               <ThemeToggle />
               <Button variant="ghost" className="justify-start" onClick={onLogout}>
                 <LogOut className="size-4" />
-                Log out
+                {t("shell.logOut")}
               </Button>
             </div>
           </div>
@@ -259,7 +264,7 @@ export function AppShell({
             <MoreHorizontal className={cn("size-5", overflowActive && "text-primary")} />
           </span>
           <span className={cn("truncate", overflowActive && "font-semibold text-primary")}>
-            More
+            {t("shell.more")}
           </span>
         </button>
       </nav>

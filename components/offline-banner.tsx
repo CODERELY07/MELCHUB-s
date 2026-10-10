@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { WifiOff } from "lucide-react";
 
 import { lastSyncedAt } from "@/lib/offline-cache";
+import { useI18n } from "@/lib/i18n";
 
 /**
  * A persistent, honest signal that data on screen is whatever the service
@@ -12,6 +13,7 @@ import { lastSyncedAt } from "@/lib/offline-cache";
  * in AppShell) rather than per-page, so no page can forget to add it.
  */
 export function OfflineBanner() {
+  const { t } = useI18n();
   const [online, setOnline] = useState(true);
   const [synced, setSynced] = useState<string | null>(null);
 
@@ -43,8 +45,11 @@ export function OfflineBanner() {
     <div className="flex items-center justify-center gap-2 bg-warning/15 px-4 py-1.5 text-center text-xs font-medium text-warning-ink">
       <WifiOff className="size-3.5 shrink-0" />
       <span>
-        You&apos;re offline — this is the last data saved
-        {synced ? ` (${new Date(synced).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })})` : ""}. Go online to get the latest.
+        {synced
+          ? t("offline.withTime", {
+              time: new Date(synced).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" }),
+            })
+          : t("offline.noTime")}
       </span>
     </div>
   );

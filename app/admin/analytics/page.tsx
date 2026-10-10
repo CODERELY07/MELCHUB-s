@@ -15,7 +15,8 @@ import { BarChart } from "@/components/charts/bar-chart";
 import { DonutChart } from "@/components/charts/donut-chart";
 import { formatCurrency } from "@/lib/format";
 import { downloadAnalyticsPdf } from "@/lib/analytics-pdf";
-import type { AnalyticsData } from "@/lib/types";
+import { useI18n } from "@/lib/i18n";
+import type { AnalyticsData, LoanStatus } from "@/lib/types";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "var(--color-muted-foreground)",
@@ -32,6 +33,7 @@ function monthLabel(month: string): string {
 }
 
 export default function AdminAnalyticsPage() {
+  const { t } = useI18n();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -46,9 +48,9 @@ export default function AdminAnalyticsPage() {
           router.push(LOGIN_PATH);
           return;
         }
-        setError("Couldn't load analytics.");
+        setError(t("reports.loadError"));
       });
-  }, [router]);
+  }, [router, t]);
 
   if (error) {
     return (
@@ -72,22 +74,20 @@ export default function AdminAnalyticsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            A full picture of your lending activity, past 12 months.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.reports")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("reports.subtitle")}</p>
         </div>
         <Button variant="outline" onClick={() => downloadAnalyticsPdf(data)} className="self-start sm:self-auto">
           <Download className="size-4" />
-          Download PDF
+          {t("reports.download")}
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Total loaned out" value={formatCurrency(totals.total_loaned)} icon={HandCoins} tone={2} />
-        <StatCard label="Total collected" value={formatCurrency(totals.total_collected)} icon={Banknote} tone={3} />
-        <StatCard label="Outstanding balance" value={formatCurrency(totals.total_outstanding)} icon={AlertCircle} tone={4} />
-        <StatCard label="Overdue loans" value={String(totals.overdue_count)} icon={TriangleAlert} tone={5} />
+        <StatCard label={t("reports.lent")} value={formatCurrency(totals.total_loaned)} hint={t("reports.lentHint")} icon={HandCoins} tone={2} />
+        <StatCard label={t("reports.collected")} value={formatCurrency(totals.total_collected)} hint={t("reports.collectedHint")} icon={Banknote} tone={3} />
+        <StatCard label={t("reports.owed")} value={formatCurrency(totals.total_outstanding)} hint={t("reports.owedHint")} icon={AlertCircle} tone={4} />
+        <StatCard label={t("reports.late")} value={String(totals.overdue_count)} hint={t("reports.lateHint")} icon={TriangleAlert} tone={5} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -97,13 +97,13 @@ export default function AdminAnalyticsPage() {
               <TrendingUp className="size-4.5" />
             </span>
             <div>
-              <CardTitle as="h2" className="text-base">Loans created per month</CardTitle>
-              <CardDescription>Count of new loans, last 12 months</CardDescription>
+              <CardTitle as="h2" className="text-base">{t("reports.newLoans")}</CardTitle>
+              <CardDescription>{t("reports.newLoansDesc")}</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <BarChart
-              title="Loans created per month"
+              title={t("reports.newLoans")}
               data={monthly_loans.map((m) => ({ label: monthLabel(m.month), value: m.count }))}
             />
           </CardContent>
@@ -115,13 +115,13 @@ export default function AdminAnalyticsPage() {
               <Banknote className="size-4.5" />
             </span>
             <div>
-              <CardTitle as="h2" className="text-base">Collections per month</CardTitle>
-              <CardDescription>Total payments received, last 12 months</CardDescription>
+              <CardTitle as="h2" className="text-base">{t("reports.collections")}</CardTitle>
+              <CardDescription>{t("reports.collectionsDesc")}</CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <BarChart
-              title="Collections per month"
+              title={t("reports.collections")}
               data={monthly_collections.map((m) => ({ label: monthLabel(m.month), value: m.amount }))}
               formatValue={(v) => formatCurrency(v)}
               barColor="var(--color-success)"
@@ -136,14 +136,14 @@ export default function AdminAnalyticsPage() {
             <ChartPie className="size-4.5" />
           </span>
           <div>
-            <CardTitle as="h2" className="text-base">Loan status breakdown</CardTitle>
-            <CardDescription>{totals.loan_count} loans total</CardDescription>
+            <CardTitle as="h2" className="text-base">{t("reports.statuses")}</CardTitle>
+            <CardDescription>{t("reports.statusesDesc", { count: totals.loan_count })}</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <DonutChart
             data={status_breakdown.map((s) => ({
-              label: s.status,
+              label: t(`status.${s.status as LoanStatus}`),
               value: s.count,
               color: STATUS_COLORS[s.status] ?? "var(--color-muted-foreground)",
             }))}

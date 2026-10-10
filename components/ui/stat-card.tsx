@@ -47,6 +47,8 @@ interface StatCardProps {
   value: string;
   icon: ComponentType<{ className?: string }>;
   tone: StatTone;
+  /** One plain sentence saying what the number means — for people who don't read finance terms. */
+  hint?: string;
   className?: string;
 }
 
@@ -57,7 +59,7 @@ interface StatCardProps {
  * replacing the flat white card + square icon chip these three pages used
  * to repeat individually.
  */
-export function StatCard({ label, value, icon: Icon, tone, className }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, tone, hint, className }: StatCardProps) {
   const styles = TONE_STYLES[tone];
 
   return (
@@ -78,10 +80,9 @@ export function StatCard({ label, value, icon: Icon, tone, className }: StatCard
         <Icon className="size-4 sm:size-[1.125rem]" />
       </span>
 
-      <div className="mt-3 truncate text-xs font-medium text-muted-foreground sm:text-sm">
-        {label}
-      </div>
-      <div className="text-lg font-bold tracking-tight sm:text-2xl">{value}</div>
+      <div className="mt-3 text-xs font-medium text-muted-foreground sm:text-sm">{label}</div>
+      <div className="text-lg font-bold tracking-tight tabular-nums sm:text-2xl">{value}</div>
+      {hint && <p className="mt-1 text-xs leading-snug text-muted-foreground">{hint}</p>}
     </div>
   );
 }

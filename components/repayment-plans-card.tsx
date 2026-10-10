@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useI18n } from "@/lib/i18n";
 import type { RepaymentPlanRecord } from "@/lib/types";
 
 const EMPTY = { name: "", period_days: "7", installments: "5", daily_rate: "0.4" };
 
 /** Admin: create, deactivate and delete the repayment plans borrowers/loans can use. */
 export function RepaymentPlansCard() {
+  const { t } = useI18n();
   const [plans, setPlans] = useState<RepaymentPlanRecord[] | null>(null);
   const [form, setForm] = useState(EMPTY);
   const [error, setError] = useState("");
@@ -26,8 +28,8 @@ export function RepaymentPlansCard() {
     api
       .get("/repayment-plans")
       .then((res) => setPlans(res.data))
-      .catch(() => setError("Couldn't load repayment plans."));
-  }, []);
+      .catch(() => setError(t("plans.loadError")));
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -54,7 +56,7 @@ export function RepaymentPlansCard() {
       setForm(EMPTY);
       load();
     } catch (err) {
-      fail(err, "Couldn't create the plan.");
+      fail(err, t("plans.createError"));
     } finally {
       setSaving(false);
     }
@@ -66,18 +68,18 @@ export function RepaymentPlansCard() {
       await api.put(`/repayment-plans/${plan.id}`, { ...plan, is_active: !plan.is_active });
       load();
     } catch (err) {
-      fail(err, "Couldn't update the plan.");
+      fail(err, t("plans.updateError"));
     }
   };
 
   const remove = async (plan: RepaymentPlanRecord) => {
-    if (!window.confirm(`Delete "${plan.name}"?`)) return;
+    if (!window.confirm(t("plans.confirmDelete", { name: plan.name }))) return;
     setError("");
     try {
       await api.delete(`/repayment-plans/${plan.id}`);
       load();
     } catch (err) {
-      fail(err, "Couldn't delete the plan.");
+      fail(err, t("plans.deleteError"));
     }
   };
 
@@ -88,11 +90,8 @@ export function RepaymentPlansCard() {
           <CalendarRange className="size-4.5" />
         </span>
         <div>
-          <CardTitle as="h2" className="text-base">Repayment plans</CardTitle>
-          <CardDescription>
-            Plans borrowers can request and you can assign to a loan. Each installment = an even share of the
-            principal plus that period&apos;s interest.
-          </CardDescription>
+          <CardTitle as="h3" className="text-base">{t("plans.title")}</CardTitle>
+          <CardDescription>{t("plans.desc")}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -110,18 +109,29 @@ export function RepaymentPlansCard() {
               <div key={plan.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
                 <div>
                   <div className="font-medium">
-                    {plan.name} {!plan.is_active && <Badge variant="muted">inactive</Badge>}
+                    {plan.name} {!plan.is_active && <Badge variant="muted">{t("plans.hidden")}</Badge>}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Every {plan.period_days} day{plan.period_days > 1 ? "s" : ""} · {plan.installments} installments ·{" "}
-                    {Number(plan.daily_rate)}%/day interest
+                    {t("plans.summary", {
+                      count: plan.installments,
+                      days: plan.period_days,
+                      rate: Number(plan.daily_rate),
+                      share: Math.round(100 / Math.max(1, plan.installments)),
+                    })}
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <Button type="button" size="sm" variant="outline" onClick={() => toggle(plan)}>
-                    {plan.is_active ? "Deactivate" : "Activate"}
+                    {plan.is_active ? t("plans.hide") : t("plans.show")}
                   </Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => remove(plan)} aria-label={`Delete ${plan.name}`}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => remove(plan)}
+                    aria-label={t("plans.deleteLabel", { name: plan.name })}
+                    title={t("plans.deleteLabel", { name: plan.name })}
+                  >
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
@@ -132,25 +142,25 @@ export function RepaymentPlansCard() {
 
         <form onSubmit={add} className="grid grid-cols-2 gap-3 border-t border-border pt-4">
           <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="plan_name">New plan name</Label>
-            <Input id="plan_name" required placeholder="e.g. 2-Week Plan" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <Label htmlFor="plan_name">{t("plans.newName")}</Label>
+            <Input id="plan_name" required placeholder={t("plans.newNamePlaceholder")} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="plan_days">Days per installment</Label>
+            <Label htmlFor="plan_days">{t("plans.days")}</Label>
             <Input id="plan_days" type="number" min="1" required value={form.period_days} onChange={(e) => setForm({ ...form, period_days: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="plan_count">Number of installments</Label>
+            <Label htmlFor="plan_count">{t("plans.count")}</Label>
             <Input id="plan_count" type="number" min="1" required value={form.installments} onChange={(e) => setForm({ ...form, installments: e.target.value })} />
           </div>
           <div className="col-span-2 space-y-1.5">
-            <Label htmlFor="plan_rate">Interest per day (%)</Label>
+            <Label htmlFor="plan_rate">{t("plans.rate")}</Label>
             <Input id="plan_rate" type="number" step="0.001" min="0" required value={form.daily_rate} onChange={(e) => setForm({ ...form, daily_rate: e.target.value })} />
           </div>
           <div className="col-span-2">
             <Button type="submit" disabled={saving}>
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Add plan
+              {t("plans.add")}
             </Button>
           </div>
         </form>

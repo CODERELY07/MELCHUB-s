@@ -1,22 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { isAxiosError } from "axios";
-import { Wallet, TrendingUp, HandCoins, PiggyBank, CalendarRange, CalendarClock, Wallet2 } from "lucide-react";
+import { ArrowLeft, HandCoins, PiggyBank, TrendingUp, Wallet, Wallet2 } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { LOGIN_PATH } from "@/lib/auth-context";
 import { cachedGet } from "@/lib/offline-cache";
 import { projectedPayoff } from "@/lib/loan-payoff";
+import { useI18n } from "@/lib/i18n";
 import { LoanHistoryTable } from "@/components/loan-history-table";
+import { LoanStatusBadge } from "@/components/loan-status-badge";
 import { NextPaymentCard } from "@/components/next-payment-card";
+import { PaymentSchedule } from "@/components/payment-schedule";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate, toDateInputValue, todayInManila } from "@/lib/format";
@@ -24,27 +27,22 @@ import type { Loan, LoanHistoryEntry, LoanStatus } from "@/lib/types";
 
 const CLOSED_STATUSES: LoanStatus[] = ["paid", "cancelled", "defaulted"];
 
-const STATUS_BADGE: Record<LoanStatus, "default" | "success" | "warning" | "destructive" | "muted"> = {
-  pending: "muted",
-  active: "default",
-  paid: "success",
-  overdue: "warning",
-  defaulted: "destructive",
-  cancelled: "muted",
-};
-
+/**
+ * One loan, top to bottom in the order a borrower asks about it: what do I
+ * pay next → where does this loan stand → how was it set up → what happened
+ * day by day.
+ */
 export default function PortalLoanDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useI18n();
   const [loan, setLoan] = useState<Loan | null>(null);
   const [history, setHistory] = useState<LoanHistoryEntry[] | null>(null);
-  const [error, setError] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
   const [payoffDate, setPayoffDate] = useState("");
 
   useEffect(() => {
-    cachedGet(`loan-${id}`, () =>
-      borrowerApi.get(`/borrower/loans/${id}`).then((res) => res.data as Loan)
-    )
+    cachedGet(`loan-${id}`, () => borrowerApi.get(`/borrower/loans/${id}`).then((res) => res.data as Loan))
       .then((data) => {
         setLoan(data);
         setPayoffDate((current) => current || toDateInputValue(data.due_date));
@@ -55,7 +53,7 @@ export default function PortalLoanDetailPage() {
           router.push(LOGIN_PATH);
           return;
         }
-        setError("Couldn't load this loan.");
+        setLoadFailed(true);
       });
 
     cachedGet(`loan-${id}-history`, () =>
@@ -67,11 +65,21 @@ export default function PortalLoanDetailPage() {
       });
   }, [id, router]);
 
-  if (error) {
+  const backLink = (
+    <Link href="/portal" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <ArrowLeft className="size-4" />
+      {t("loan.back")}
+    </Link>
+  );
+
+  if (loadFailed) {
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4">
+        {backLink}
+        <Alert variant="destructive">
+          <AlertDescription>{t("loan.loadError")}</AlertDescription>
+        </Alert>
+      </div>
     );
   }
 
@@ -79,6 +87,7 @@ export default function PortalLoanDetailPage() {
     return (
       <div className="flex flex-col gap-4">
         <Skeleton className="h-10 w-48" />
+        <Skeleton className="h-28 w-full rounded-xl" />
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full rounded-xl" />
@@ -89,74 +98,109 @@ export default function PortalLoanDetailPage() {
   }
 
   const isOpen = !CLOSED_STATUSES.includes(loan.status);
+  const goPay = () => router.push(`/portal/loans/${loan.id}/pay`);
+  const usesWeeklySchedule = loan.installments_enabled && loan.auto_penalty;
+  const canPlanPayoff = isOpen && !!loan.due_date && !loan.is_overdue;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Loan {loan.loan_number}</h1>
-          <p className="text-sm text-muted-foreground">
-            <Badge variant={STATUS_BADGE[loan.status]}>{loan.is_overdue ? "overdue" : loan.status}</Badge>
-          </p>
+    <div className="flex max-w-4xl flex-col gap-6">
+      {backLink}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+            {t("loan.title", { number: loan.loan_number ?? "" })}
+          </h1>
+          <LoanStatusBadge loan={loan} />
         </div>
-        {/* Open loans with a due date get the Pay button inside the "next payment" card below instead. */}
         {isOpen && !loan.due_date && (
-          <Button
-            className="self-start sm:self-auto"
-            onClick={() => router.push(`/portal/loans/${loan.id}/pay`)}
-          >
+          <Button onClick={goPay}>
             <Wallet2 className="size-4" />
-            Pay
+            {t("next.payNow")}
           </Button>
         )}
       </div>
 
-      {isOpen && loan.due_date && (
-        <NextPaymentCard loan={loan} onPay={() => router.push(`/portal/loans/${loan.id}/pay`)} />
-      )}
+      {isOpen && loan.due_date && <NextPaymentCard loan={loan} onPay={goPay} />}
+
+      {isOpen && <PaymentSchedule loan={loan} />}
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Principal" value={formatCurrency(loan.total_loan)} icon={Wallet} tone={1} />
         <StatCard
-          label={`Interest so far (${loan.interest_rate}%/day${loan.compounds_interest ? ", compounding" : ""})`}
+          label={t("stat.borrowed")}
+          value={formatCurrency(loan.total_loan)}
+          hint={t("stat.borrowedHint")}
+          icon={Wallet}
+          tone={1}
+        />
+        <StatCard
+          label={t("stat.interest")}
           value={formatCurrency(loan.interest_amount)}
+          hint={t(loan.compounds_interest ? "stat.interestHintCompound" : "stat.interestHint", { rate: Number(loan.interest_rate) })}
           icon={TrendingUp}
           tone={4}
         />
-        <StatCard label="Total paid" value={formatCurrency(loan.total_paid)} icon={HandCoins} tone={3} />
-        <StatCard label="Balance remaining" value={formatCurrency(loan.balance)} icon={PiggyBank} tone={2} />
+        <StatCard
+          label={t("stat.paid")}
+          value={formatCurrency(loan.total_paid)}
+          hint={t("stat.paidHint")}
+          icon={HandCoins}
+          tone={3}
+        />
+        <StatCard
+          label={t("stat.owed")}
+          value={formatCurrency(Math.max(0, loan.balance))}
+          hint={t("stat.owedHint")}
+          icon={PiggyBank}
+          tone={2}
+        />
       </div>
 
       <Card>
-        <CardHeader className="!flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
-            <CalendarRange className="size-4.5" />
-          </span>
-          <div>
-            <CardTitle as="h2" className="text-base">Loan term</CardTitle>
-            <CardDescription>
-              Started {formatDate(loan.start_date)} &middot; {loan.auto_penalty && loan.installments_enabled ? "next payment due" : "due"}{" "}
-              {formatDate(loan.due_date)}
-              {loan.plan_name ? ` · ${loan.plan_name}` : ""}
-            </CardDescription>
-          </div>
+        <CardHeader>
+          <CardTitle as="h2" className="text-base">{t("loan.aboutTitle")}</CardTitle>
         </CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-muted-foreground">{t("loan.started")}</dt>
+              <dd className="font-medium">{formatDate(loan.start_date)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{usesWeeklySchedule ? t("loan.nextDue") : t("loan.dueDate")}</dt>
+              <dd className="font-medium">{formatDate(loan.due_date)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t("loan.plan")}</dt>
+              <dd className="font-medium">
+                {loan.installments_enabled ? (loan.plan_name ?? t("loan.installments")) : t("loan.oneTime")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t("loan.rate")}</dt>
+              <dd className="font-medium">
+                {t(loan.compounds_interest ? "loan.rateCompound" : "loan.rateValue", { rate: Number(loan.interest_rate) })}
+              </dd>
+            </div>
+            {Number(loan.penalty_amount) > 0 && (
+              <div>
+                <dt className="text-muted-foreground">{t("loan.lateFees")}</dt>
+                <dd className="font-medium text-destructive">{formatCurrency(loan.penalty_amount)}</dd>
+              </div>
+            )}
+          </dl>
+        </CardContent>
       </Card>
 
-      {loan.due_date && !loan.is_overdue && !CLOSED_STATUSES.includes(loan.status) && (
+      {canPlanPayoff && (
         <Card>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-3/15 text-data-3">
-              <CalendarClock className="size-4.5" />
-            </span>
-            <div>
-              <CardTitle as="h2" className="text-base">What would I owe if I paid on...</CardTitle>
-              <CardDescription>Pay earlier than your due date to owe less interest.</CardDescription>
-            </div>
+          <CardHeader>
+            <CardTitle as="h2" className="text-base">{t("loan.payoffTitle")}</CardTitle>
+            <CardDescription>{t("loan.payoffDesc")}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="payoff_date">Pay on</Label>
+          <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-6">
+            <div className="space-y-1.5 sm:w-56">
+              <Label htmlFor="payoff_date">{t("loan.payoffPayOn")}</Label>
               <Input
                 id="payoff_date"
                 type="date"
@@ -166,11 +210,9 @@ export default function PortalLoanDetailPage() {
                 onChange={(e) => setPayoffDate(e.target.value)}
               />
             </div>
-            <div className="rounded-lg bg-chart-3/10 p-3 ring-1 ring-chart-3/15">
-              <div className="text-xs text-muted-foreground">
-                Total to pay on {formatDate(payoffDate)}
-              </div>
-              <div className="text-2xl font-bold">
+            <div>
+              <div className="text-xs text-muted-foreground">{t("loan.payoffTotal", { date: formatDate(payoffDate) })}</div>
+              <div className="text-2xl font-bold tabular-nums">
                 {payoffDate ? formatCurrency(projectedPayoff(loan, payoffDate)) : "—"}
               </div>
             </div>
@@ -178,18 +220,11 @@ export default function PortalLoanDetailPage() {
         </Card>
       )}
 
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">History</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Interest builds up day by day based on your rate; payments you make are recorded here as soon as your loan officer confirms them.
-        </p>
-
-        {!history ? (
-          <Skeleton className="h-40 w-full rounded-lg" />
-        ) : (
-          <LoanHistoryTable entries={history} />
-        )}
-      </div>
+      <section>
+        <h2 className="text-lg font-semibold">{t("history.title")}</h2>
+        <p className="mb-3 mt-1 text-sm text-muted-foreground">{t("history.subtitle")}</p>
+        {!history ? <Skeleton className="h-40 w-full rounded-lg" /> : <LoanHistoryTable entries={history} />}
+      </section>
     </div>
   );
 }

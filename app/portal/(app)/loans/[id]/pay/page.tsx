@@ -1,46 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { isAxiosError } from "axios";
-import { CalendarClock, Loader2, ReceiptText, Upload, WifiOff, Wallet } from "lucide-react";
+import { ArrowLeft, Check, Copy, Loader2, ReceiptText, Send, WifiOff } from "lucide-react";
 
 import borrowerApi from "@/lib/borrower-axios";
 import { cachedGet } from "@/lib/offline-cache";
+import { useI18n } from "@/lib/i18n";
+import { useLateFee } from "@/components/next-payment-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { Loan, LoanDefaultsSettings, PaymentProof, PaymentProofStatus, PaymentSettings } from "@/lib/types";
+import type { Loan, PaymentProof, PaymentProofStatus, PaymentSettings } from "@/lib/types";
 
-const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructive"> = {
+const RECEIPT_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructive"> = {
   pending: "muted",
   approved: "success",
   rejected: "destructive",
 };
 
+/**
+ * Paying is three real steps that happen in this order — see how much,
+ * send it in GCash (outside this app), send the receipt back here — so the
+ * page is laid out as exactly those three steps, numbered.
+ */
 export default function PortalLoanPayPage() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useI18n();
+  const lateFee = useLateFee();
   const [loan, setLoan] = useState<Loan | null>(null);
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [proofs, setProofs] = useState<PaymentProof[] | null>(null);
   const [online, setOnline] = useState(true);
-  const [lateFee, setLateFee] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const [amount, setAmount] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  // Changing the key remounts the file input — the only way to really clear it after sending.
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const loadLoan = () => {
@@ -49,9 +55,7 @@ export default function PortalLoanPayPage() {
 
   const loadProofs = () => {
     cachedGet(`payment-proofs-${id}`, () =>
-      borrowerApi
-        .get("/borrower/payment-proofs", { params: { loan_id: id } })
-        .then((res) => res.data as PaymentProof[])
+      borrowerApi.get("/borrower/payment-proofs", { params: { loan_id: id } }).then((res) => res.data as PaymentProof[])
     )
       .then(setProofs)
       .catch(() => setProofs([]));
@@ -61,22 +65,15 @@ export default function PortalLoanPayPage() {
     cachedGet(`loan-${id}`, () => borrowerApi.get(`/borrower/loans/${id}`).then((res) => res.data as Loan))
       .then(setLoan)
       .catch(() => {});
-    cachedGet("payment-settings", () =>
-      borrowerApi.get("/settings/payment").then((res) => res.data as PaymentSettings)
-    )
+    cachedGet("payment-settings", () => borrowerApi.get("/settings/payment").then((res) => res.data as PaymentSettings))
       .then(setSettings)
       .catch(() => setSettings({ gcash_name: "", gcash_number: "" }));
-    cachedGet("loan-defaults", () =>
-      borrowerApi.get("/settings/loan-defaults").then((res) => res.data as LoanDefaultsSettings)
-    )
-      .then((d) => setLateFee(Number(d.late_fee_amount)))
-      .catch(() => setLateFee(null));
     loadProofs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Paying needs a live connection: the amount due must be current, and the
-  // proof upload can't be queued. Track connectivity to gate the form.
+  // receipt upload can't be queued. Track connectivity to gate the form.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOnline(navigator.onLine);
@@ -95,17 +92,28 @@ export default function PortalLoanPayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const copyNumber = async () => {
+    if (!settings?.gcash_number) return;
+    try {
+      await navigator.clipboard.writeText(settings.gcash_number.replace(/\s+/g, ""));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard blocked — the number is still on screen to type by hand.
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
+    setSuccess(false);
 
     if (!online) {
-      setError("You're offline. Connect to the internet to submit a payment.");
+      setError(t("pay.errorOffline"));
       return;
     }
     if (!file) {
-      setError("Please choose a screenshot to upload.");
+      setError(t("pay.errorNoFile"));
       return;
     }
 
@@ -119,26 +127,31 @@ export default function PortalLoanPayPage() {
       await borrowerApi.post("/borrower/payment-proofs", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      setSuccess("Submitted! Your loan officer will review it shortly.");
+      setSuccess(true);
       setAmount("");
       setFile(null);
+      setFileInputKey((k) => k + 1);
       loadProofs();
     } catch (err: unknown) {
       setError(
-        (isAxiosError(err) && (err.response?.data?.message || err.response?.data?.errors?.screenshot?.[0])) ||
-          "Couldn't submit your payment proof."
+        (isAxiosError(err) && (err.response?.data?.errors?.screenshot?.[0] || err.response?.data?.message)) ||
+          t("pay.errorFailed")
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!loan) return null;
+  if (!loan) {
+    return (
+      <div className="flex max-w-xl flex-col gap-4">
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-xl" />
+      </div>
+    );
+  }
 
-  // The amount comes from the server (Loan::amount_due_this_week) — the same
-  // number the automatic late-fee check judges the borrower against — so
-  // what's shown here can never drift from what actually gets enforced.
-  const periodLabel = loan.plan_period_days === 7 ? "week" : `${loan.plan_period_days} days`;
   const amountDue = loan.amount_due_this_week;
   const pastDue = loan.past_due_amount;
   const paidUp = amountDue <= 0;
@@ -146,102 +159,90 @@ export default function PortalLoanPayPage() {
   const autoFee = loan.installments_enabled && loan.auto_penalty && lateFee !== null && lateFee > 0;
 
   return (
-    <div className="flex max-w-lg flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Pay</h1>
-        <p className="text-sm text-muted-foreground">
-          Loan {loan.loan_number} — send payment via GCash, then upload your reference screenshot here.
-        </p>
-      </div>
+    <div className="flex max-w-xl flex-col gap-6">
+      <Link
+        href={`/portal/loans/${loan.id}`}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" />
+        {t("loan.title", { number: loan.loan_number ?? "" })}
+      </Link>
+
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("pay.title", { number: loan.loan_number ?? "" })}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("pay.intro")}</p>
+      </header>
 
       {!online && (
         <Alert variant="destructive">
           <WifiOff className="size-4" />
-          <AlertDescription>
-            You&apos;re offline. Paying needs an internet connection so we can show your up-to-date
-            amount due. Please go online to pay.
-          </AlertDescription>
+          <AlertDescription>{t("pay.offline")}</AlertDescription>
         </Alert>
       )}
 
       {open && (
         <Card>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
-              <CalendarClock className="size-4.5" />
-            </span>
-            <div>
-              <CardTitle as="h2" className="text-base">
-                {pastDue > 0
-                  ? "Payment behind"
-                  : paidUp
-                    ? `Paid up for this ${loan.installments_enabled ? periodLabel : "loan"}`
-                    : loan.installments_enabled
-                      ? `Pay for this ${periodLabel}`
-                      : "Pay by your due date"}
-              </CardTitle>
-              <CardDescription>
-                {loan.installments_enabled ? (loan.plan_name ?? "Installment plan") : "Full payment"}
-                {loan.due_date ? ` · due ${formatDate(loan.due_date)}` : ""}
-              </CardDescription>
-            </div>
+          <CardHeader>
+            <CardTitle as="h2" className="text-base">{t("pay.step1")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="text-2xl font-bold">{online ? formatCurrency(amountDue) : "—"}</div>
-            <p className="text-xs text-muted-foreground">
-              {online
-                ? `${pastDue > 0 ? `Includes ${formatCurrency(pastDue)} that was already due. ` : ""}Balance remaining: ${formatCurrency(loan.balance)}`
-                : "Go online to see your current amount due."}
-            </p>
-            {online && autoFee && !paidUp && (
-              <p className="text-xs text-muted-foreground">
-                A {formatCurrency(lateFee)} late fee is added automatically if this isn&apos;t paid by the due date.
-              </p>
+            {!online ? (
+              <p className="text-sm text-muted-foreground">{t("pay.offlineAmount")}</p>
+            ) : paidUp ? (
+              <p className="text-sm">{t("pay.nothingDue")}</p>
+            ) : (
+              <>
+                <div className="text-3xl font-bold tracking-tight tabular-nums">{formatCurrency(amountDue)}</div>
+                {loan.due_date && (
+                  <p className="text-sm font-medium">{t("pay.payBy", { date: formatDate(loan.due_date) })}</p>
+                )}
+                {pastDue > 0 && (
+                  <p className="text-sm text-destructive">{t("pay.includesPast", { amount: formatCurrency(pastDue) })}</p>
+                )}
+                {autoFee && (
+                  <p className="text-xs text-muted-foreground">{t("pay.lateFee", { fee: formatCurrency(lateFee) })}</p>
+                )}
+              </>
             )}
-            {online && !paidUp && (
-              <Button type="button" variant="outline" size="sm" onClick={() => setAmount(String(amountDue))}>
-                Use {formatCurrency(amountDue)} as the amount
-              </Button>
+            {online && (
+              <p className="text-xs text-muted-foreground">
+                {t("pay.balanceLeft", { amount: formatCurrency(Math.max(0, loan.balance)) })}
+              </p>
             )}
           </CardContent>
         </Card>
       )}
 
       <Card>
-        <CardHeader className="!flex items-center gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-data-2">
-            <Wallet className="size-4.5" />
-          </span>
-          <div>
-            <CardTitle as="h2" className="text-base">GCash payment details</CardTitle>
-            <CardDescription>Balance due: {formatCurrency(loan.balance)}</CardDescription>
-          </div>
+        <CardHeader>
+          <CardTitle as="h2" className="text-base">{t("pay.step2")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {settings ? (
-            settings.gcash_number ? (
-              <div className="rounded-lg bg-chart-2/10 p-3 text-sm ring-1 ring-chart-2/15">
-                <div className="font-medium">{settings.gcash_name}</div>
-                <div className="font-mono text-lg tracking-wide">{settings.gcash_number}</div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Your loan officer hasn&apos;t set up GCash details yet — please contact them directly.
-              </p>
-            )
-          ) : (
+          {!settings ? (
             <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          ) : settings.gcash_number ? (
+            <div className="flex flex-col gap-3 rounded-lg bg-chart-2/10 p-4 ring-1 ring-chart-2/15 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-xs text-muted-foreground">{t("pay.gcashTo")}</div>
+                <div className="font-medium">{settings.gcash_name}</div>
+                <div className="text-xl font-semibold tracking-wide tabular-nums">{settings.gcash_number}</div>
+              </div>
+              <Button type="button" variant="outline" onClick={copyNumber}>
+                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                {copied ? t("pay.copied") : t("pay.copy")}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t("pay.noGcash")}</p>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-3/15 text-data-3">
-              <Upload className="size-4.5" />
-            </span>
-            <CardTitle as="h2" className="text-base">Submit payment proof</CardTitle>
+          <CardHeader>
+            <CardTitle as="h2" className="text-base">{t("pay.step3")}</CardTitle>
+            <CardDescription>{t("pay.step3Desc")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
@@ -251,26 +252,39 @@ export default function PortalLoanPayPage() {
             )}
             {success && (
               <Alert variant="success">
-                <AlertDescription>{success}</AlertDescription>
+                <AlertDescription>{t("pay.success")}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="amount">Amount you sent</Label>
+              <Label htmlFor="amount">{t("pay.amountSent")}</Label>
               <Input
                 id="amount"
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 min="0.01"
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
+              {online && !paidUp && open && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto px-0 text-primary"
+                  onClick={() => setAmount(String(amountDue))}
+                >
+                  {t("pay.useAmount", { amount: formatCurrency(amountDue) })}
+                </Button>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="screenshot">GCash reference screenshot</Label>
+              <Label htmlFor="screenshot">{t("pay.screenshot")}</Label>
               <Input
+                key={fileInputKey}
                 id="screenshot"
                 type="file"
                 accept="image/*"
@@ -278,54 +292,43 @@ export default function PortalLoanPayPage() {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={submitting || !online} className="w-full">
-              {submitting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <>
-                  <Upload className="size-4" />
-                  Submit for review
-                </>
-              )}
+
+            <Button type="submit" size="lg" disabled={submitting || !online} className="w-full">
+              {submitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              {t("pay.submit")}
             </Button>
-          </CardFooter>
+          </CardContent>
         </form>
       </Card>
 
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">Your submissions</h2>
+      <section>
+        <h2 className="mb-2 text-lg font-semibold">{t("pay.receiptsTitle")}</h2>
         {!proofs ? (
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
         ) : proofs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No payment proofs submitted yet.</p>
+          <p className="text-sm text-muted-foreground">{t("pay.noReceipts")}</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-2">
             {proofs.map((proof) => (
-              <Card key={proof.id}>
-                <CardContent className="flex items-center justify-between gap-3 pt-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
-                      <ReceiptText className="size-4" />
-                    </span>
-                    <div>
-                      <div className="font-medium">{formatCurrency(proof.amount)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Submitted {formatDate(proof.created_at)}
-                      </div>
-                      {proof.status === "rejected" && proof.note && (
-                        <div className="mt-1 text-xs text-destructive">{proof.note}</div>
-                      )}
-                    </div>
+              <li key={proof.id} className="flex items-center justify-between gap-3 rounded-xl border border-border p-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
+                    <ReceiptText className="size-4" />
+                  </span>
+                  <div>
+                    <div className="font-medium tabular-nums">{formatCurrency(proof.amount)}</div>
+                    <div className="text-xs text-muted-foreground">{t("pay.sentOn", { date: formatDate(proof.created_at) })}</div>
+                    {proof.status === "rejected" && proof.note && (
+                      <div className="mt-1 text-xs text-destructive">{t("pay.rejectedReason", { reason: proof.note })}</div>
+                    )}
                   </div>
-                  <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
-                </CardContent>
-              </Card>
+                </div>
+                <Badge variant={RECEIPT_BADGE[proof.status]}>{t(`receipt.${proof.status}`)}</Badge>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </div>
+      </section>
     </div>
   );
 }

@@ -11,6 +11,8 @@ import borrowerApi from "@/lib/borrower-axios";
 import { useAuth } from "@/lib/auth-context";
 import { useBorrowerAuth } from "@/lib/borrower-auth-context";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,8 +25,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-const GENERIC_ERROR = "We couldn't log you in. Check your details and try again.";
 
 /**
  * One login for both staff and borrowers — there used to be two separate
@@ -42,6 +42,7 @@ const GENERIC_ERROR = "We couldn't log you in. Check your details and try again.
  * log in.
  */
 export default function LoginPage() {
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -84,7 +85,7 @@ export default function LoginPage() {
       // network, a genuinely malformed request) is shown as-is instead of
       // being masked behind a second attempt.
       if (status !== 401 && status !== 422) {
-        setError((isAxiosError(err) && err.response?.data?.message) || GENERIC_ERROR);
+        setError((isAxiosError(err) && err.response?.data?.message) || t("login.error"));
         setIsLoading(false);
         return;
       }
@@ -99,8 +100,8 @@ export default function LoginPage() {
       const status = isAxiosError(err) ? err.response?.status : undefined;
       setError(
         status && status !== 401
-          ? (isAxiosError(err) && err.response?.data?.message) || GENERIC_ERROR
-          : GENERIC_ERROR
+          ? (isAxiosError(err) && err.response?.data?.message) || t("login.error")
+          : t("login.error")
       );
     } finally {
       setIsLoading(false);
@@ -110,15 +111,14 @@ export default function LoginPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/20 px-4 pt-[max(3rem,env(safe-area-inset-top))] pb-[max(3rem,env(safe-area-inset-bottom))]">
       <Card className="relative w-full max-w-sm shadow-xl">
+        <LanguageToggle compact className="absolute top-3 left-3 w-24" />
         <ThemeToggle iconOnly className="absolute top-3 right-3" />
-        <CardHeader className="space-y-3 text-center">
+        <CardHeader className="space-y-3 pt-12 text-center">
           <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[color-mix(in_oklch,var(--primary),var(--chart-5)_30%)] font-heading text-lg font-bold text-primary-foreground shadow-md">
             M
           </div>
-          <CardTitle as="h1" className="text-3xl font-bold tracking-tight">Welcome back</CardTitle>
-          <CardDescription>
-            Sign in with the username and password your loan officer gave you
-          </CardDescription>
+          <CardTitle as="h1" className="text-3xl font-bold tracking-tight">{t("login.title")}</CardTitle>
+          <CardDescription>{t("login.subtitle")}</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleLogin}>
@@ -130,7 +130,7 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t("login.username")}</Label>
               <Input
                 id="username"
                 autoComplete="username"
@@ -141,7 +141,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">{t("login.password")}</Label>
               <div className="relative">
                 <Input
                   id="password"
@@ -157,7 +157,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -175,7 +175,7 @@ export default function LoginPage() {
                 checked={remember}
                 onChange={(e) => setRemember(e.target.checked)}
               />
-              Remember me for 1 year
+              {t("login.remember")}
             </label>
           </CardContent>
 
@@ -184,12 +184,13 @@ export default function LoginPage() {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  {t("login.submitting")}
                 </>
               ) : (
-                "Log in"
+                t("login.submit")
               )}
             </Button>
+            <p className="text-center text-xs text-muted-foreground">{t("login.noAccount")}</p>
           </CardFooter>
         </form>
       </Card>

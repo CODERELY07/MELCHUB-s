@@ -5,371 +5,342 @@ import { isAxiosError } from "axios";
 import { Bell, Landmark, Loader2, Receipt, Save, Wallet } from "lucide-react";
 
 import api from "@/lib/axios";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CashAccountsCard } from "@/components/cash-accounts-card";
 import { RepaymentPlansCard } from "@/components/repayment-plans-card";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { LendingBudgetSettings, LoanDefaultsSettings, NotificationSettings, PaymentSettings } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 
+/** Saved / failed message for one settings card. */
+function SaveStatus({ error, saved }: { error: string; saved: boolean }) {
+  const { t } = useI18n();
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+  if (saved) {
+    return (
+      <Alert variant="success">
+        <AlertDescription>{t("settings.saved")}</AlertDescription>
+      </Alert>
+    );
+  }
+  return null;
+}
+
+function SaveButton({ saving, disabled }: { saving: boolean; disabled: boolean }) {
+  const { t } = useI18n();
+  return (
+    <Button type="submit" disabled={saving || disabled}>
+      {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+      {t("common.saveChanges")}
+    </Button>
+  );
+}
+
+/**
+ * Settings grouped by the question the owner is asking ("how do I get
+ * paid?", "how much do I lend?", "where's my money?", "how do I hear about
+ * things?") instead of one long undifferentiated stack of cards.
+ */
 export default function AdminSettingsPage() {
+  const { t } = useI18n();
   const [form, setForm] = useState<PaymentSettings>({ gcash_name: "", gcash_number: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [saved, setSaved] = useState(false);
 
   const [notifyForm, setNotifyForm] = useState<NotificationSettings>({ admin_notify_phone: "" });
   const [notifyLoading, setNotifyLoading] = useState(true);
   const [notifySaving, setNotifySaving] = useState(false);
   const [notifyError, setNotifyError] = useState("");
-  const [notifySuccess, setNotifySuccess] = useState("");
+  const [notifySaved, setNotifySaved] = useState(false);
 
   const [feeForm, setFeeForm] = useState<LoanDefaultsSettings>({ late_fee_amount: "" });
   const [feeLoading, setFeeLoading] = useState(true);
   const [feeSaving, setFeeSaving] = useState(false);
   const [feeError, setFeeError] = useState("");
-  const [feeSuccess, setFeeSuccess] = useState("");
+  const [feeSaved, setFeeSaved] = useState(false);
 
   const [budgetForm, setBudgetForm] = useState<LendingBudgetSettings>({ lending_budget: "", remaining_budget: null });
   const [budgetLoading, setBudgetLoading] = useState(true);
   const [budgetSaving, setBudgetSaving] = useState(false);
   const [budgetError, setBudgetError] = useState("");
-  const [budgetSuccess, setBudgetSuccess] = useState("");
+  const [budgetSaved, setBudgetSaved] = useState(false);
 
   useEffect(() => {
     api
       .get("/settings/lending-budget")
       .then((res) => setBudgetForm(res.data))
       .finally(() => setBudgetLoading(false));
-
     api
       .get("/settings/loan-defaults")
       .then((res) => setFeeForm(res.data))
       .finally(() => setFeeLoading(false));
-
     api
       .get("/settings/payment")
       .then((res) => setForm(res.data))
       .finally(() => setLoading(false));
-
     api
       .get("/settings/notifications")
       .then((res) => setNotifyForm(res.data))
       .finally(() => setNotifyLoading(false));
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /** Shared save flow for the four simple cards. */
+  const save = async <T,>(
+    e: React.FormEvent,
+    url: string,
+    body: unknown,
+    apply: (data: T) => void,
+    setBusy: (v: boolean) => void,
+    setErr: (v: string) => void,
+    setOk: (v: boolean) => void
+  ) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
-    setSaving(true);
-
+    setErr("");
+    setOk(false);
+    setBusy(true);
     try {
-      const res = await api.put("/settings/payment", form);
-      setForm(res.data);
-      setSuccess("Saved.");
+      const res = await api.put(url, body);
+      apply(res.data as T);
+      setOk(true);
     } catch (err: unknown) {
-      setError((isAxiosError(err) && err.response?.data?.message) || "Couldn't save settings.");
+      setErr((isAxiosError(err) && err.response?.data?.message) || t("settings.saveError"));
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleNotifySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setNotifyError("");
-    setNotifySuccess("");
-    setNotifySaving(true);
-
-    try {
-      const res = await api.put("/settings/notifications", notifyForm);
-      setNotifyForm(res.data);
-      setNotifySuccess("Saved.");
-    } catch (err: unknown) {
-      setNotifyError((isAxiosError(err) && err.response?.data?.message) || "Couldn't save settings.");
-    } finally {
-      setNotifySaving(false);
-    }
-  };
-
-  const handleBudgetSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBudgetError("");
-    setBudgetSuccess("");
-    setBudgetSaving(true);
-
-    try {
-      const res = await api.put("/settings/lending-budget", { lending_budget: budgetForm.lending_budget });
-      setBudgetForm(res.data);
-      setBudgetSuccess("Saved.");
-    } catch (err: unknown) {
-      setBudgetError((isAxiosError(err) && err.response?.data?.message) || "Couldn't save settings.");
-    } finally {
-      setBudgetSaving(false);
-    }
-  };
-
-  const handleFeeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFeeError("");
-    setFeeSuccess("");
-    setFeeSaving(true);
-
-    try {
-      const res = await api.put("/settings/loan-defaults", feeForm);
-      setFeeForm(res.data);
-      setFeeSuccess("Saved.");
-    } catch (err: unknown) {
-      setFeeError((isAxiosError(err) && err.response?.data?.message) || "Couldn't save settings.");
-    } finally {
-      setFeeSaving(false);
+      setBusy(false);
     }
   };
 
   return (
-    <div className="flex max-w-lg flex-col gap-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          The GCash details shown to borrowers on their dashboard and in SMS reminders.
-        </p>
-      </div>
+    <div className="flex max-w-2xl flex-col gap-8">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight">{t("nav.settings")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("settings.subtitle")}</p>
+      </header>
 
-      <Card>
-        <form onSubmit={handleSubmit}>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-data-2">
-              <Wallet className="size-4.5" />
-            </span>
-            <div>
-              <CardTitle as="h2" className="text-base">GCash payment account</CardTitle>
-              <CardDescription>Shown to every borrower, everywhere payment is requested.</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-            {success && (
-              <Alert variant="success">
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            )}
+      <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">{t("settings.groupPaid")}</h2>
 
-            {loading ? (
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            ) : (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="gcash_name">Account name</Label>
-                  <Input
-                    id="gcash_name"
-                    required
-                    value={form.gcash_name}
-                    onChange={(e) => setForm({ ...form, gcash_name: e.target.value })}
-                  />
+        <Card>
+          <form
+            onSubmit={(e) => save<PaymentSettings>(e, "/settings/payment", form, setForm, setSaving, setError, setSaved)}
+          >
+            <CardHeader className="!flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-2/15 text-data-2">
+                <Wallet className="size-4.5" />
+              </span>
+              <div>
+                <CardTitle as="h3" className="text-base">{t("settings.gcashTitle")}</CardTitle>
+                <CardDescription>{t("settings.gcashDesc")}</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <SaveStatus error={error} saved={saved} />
+              {loading ? (
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gcash_name">{t("settings.gcashName")}</Label>
+                    <Input
+                      id="gcash_name"
+                      required
+                      value={form.gcash_name}
+                      onChange={(e) => setForm({ ...form, gcash_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="gcash_number">{t("settings.gcashNumber")}</Label>
+                    <Input
+                      id="gcash_number"
+                      required
+                      inputMode="tel"
+                      value={form.gcash_number}
+                      onChange={(e) => setForm({ ...form, gcash_number: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="gcash_number">GCash number</Label>
+              )}
+            </CardContent>
+            <CardFooter>
+              <SaveButton saving={saving} disabled={loading} />
+            </CardFooter>
+          </form>
+        </Card>
+
+        <Card>
+          <form
+            onSubmit={(e) =>
+              save<LoanDefaultsSettings>(e, "/settings/loan-defaults", feeForm, setFeeForm, setFeeSaving, setFeeError, setFeeSaved)
+            }
+          >
+            <CardHeader className="!flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
+                <Receipt className="size-4.5" />
+              </span>
+              <div>
+                <CardTitle as="h3" className="text-base">{t("settings.feeTitle")}</CardTitle>
+                <CardDescription>{t("settings.feeDesc")}</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <SaveStatus error={feeError} saved={feeSaved} />
+              {feeLoading ? (
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="space-y-1.5 sm:max-w-xs">
+                  <Label htmlFor="late_fee_amount">{t("settings.feeAmount")}</Label>
                   <Input
-                    id="gcash_number"
+                    id="late_fee_amount"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
                     required
-                    value={form.gcash_number}
-                    onChange={(e) => setForm({ ...form, gcash_number: e.target.value })}
+                    value={feeForm.late_fee_amount}
+                    onChange={(e) => setFeeForm({ late_fee_amount: e.target.value })}
                   />
+                  <p className="text-xs text-muted-foreground">{t("settings.feeHint")}</p>
                 </div>
-              </>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={saving || loading}>
-              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save changes
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+              )}
+            </CardContent>
+            <CardFooter>
+              <SaveButton saving={feeSaving} disabled={feeLoading} />
+            </CardFooter>
+          </form>
+        </Card>
+      </section>
 
-      <Card>
-        <form onSubmit={handleBudgetSubmit}>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
-              <Landmark className="size-4.5" />
-            </span>
-            <div>
-              <CardTitle as="h2" className="text-base">Lending budget</CardTitle>
-              <CardDescription>
-                The total you&apos;re willing to have lent out at once. Borrowers see what&apos;s left of it (or their own limit, if smaller) as what they can borrow.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {budgetError && (
-              <Alert variant="destructive">
-                <AlertDescription>{budgetError}</AlertDescription>
-              </Alert>
-            )}
-            {budgetSuccess && (
-              <Alert variant="success">
-                <AlertDescription>{budgetSuccess}</AlertDescription>
-              </Alert>
-            )}
+      <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">{t("settings.groupLending")}</h2>
 
-            {budgetLoading ? (
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="lending_budget">
-                  Budget (₱) <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="lending_budget"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="e.g. 50000"
-                  value={budgetForm.lending_budget}
-                  onChange={(e) => setBudgetForm({ ...budgetForm, lending_budget: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {budgetForm.remaining_budget !== null
-                    ? `${formatCurrency(budgetForm.remaining_budget)} left after loans currently out. `
-                    : ""}
-                  Counts the principal of every loan that isn&apos;t paid, cancelled, or defaulted. Leave blank for no shared cap.
-                </p>
+        <Card>
+          <form
+            onSubmit={(e) =>
+              save<LendingBudgetSettings>(
+                e,
+                "/settings/lending-budget",
+                { lending_budget: budgetForm.lending_budget },
+                setBudgetForm,
+                setBudgetSaving,
+                setBudgetError,
+                setBudgetSaved
+              )
+            }
+          >
+            <CardHeader className="!flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-1/15 text-data-1">
+                <Landmark className="size-4.5" />
+              </span>
+              <div>
+                <CardTitle as="h3" className="text-base">{t("settings.budgetTitle")}</CardTitle>
+                <CardDescription>{t("settings.budgetDesc")}</CardDescription>
               </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={budgetSaving || budgetLoading}>
-              {budgetSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save changes
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <SaveStatus error={budgetError} saved={budgetSaved} />
+              {budgetLoading ? (
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="space-y-1.5 sm:max-w-xs">
+                  <Label htmlFor="lending_budget">
+                    {t("settings.budgetAmount")} <span className="text-muted-foreground">{t("common.optional")}</span>
+                  </Label>
+                  <Input
+                    id="lending_budget"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={budgetForm.lending_budget}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, lending_budget: e.target.value })}
+                  />
+                  {budgetForm.remaining_budget !== null && (
+                    <p className="text-sm font-medium">
+                      {t("settings.budgetLeft", { amount: formatCurrency(budgetForm.remaining_budget) })}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">{t("settings.budgetHint")}</p>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <SaveButton saving={budgetSaving} disabled={budgetLoading} />
+            </CardFooter>
+          </form>
+        </Card>
 
-      <Card>
-        <form onSubmit={handleFeeSubmit}>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
-              <Receipt className="size-4.5" />
-            </span>
-            <div>
-              <CardTitle as="h2" className="text-base">Late fee</CardTitle>
-              <CardDescription>
-                Charged when a borrower misses their weekly or 3-day payment, and stated in their reminder text.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {feeError && (
-              <Alert variant="destructive">
-                <AlertDescription>{feeError}</AlertDescription>
-              </Alert>
-            )}
-            {feeSuccess && (
-              <Alert variant="success">
-                <AlertDescription>{feeSuccess}</AlertDescription>
-              </Alert>
-            )}
+        <RepaymentPlansCard />
+      </section>
 
-            {feeLoading ? (
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="late_fee_amount">Late fee amount (₱)</Label>
-                <Input
-                  id="late_fee_amount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={feeForm.late_fee_amount}
-                  onChange={(e) => setFeeForm({ late_fee_amount: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  One fee for every loan, whichever repayment plan it&apos;s on. Applies to reminders sent from now on.
-                </p>
+      <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">{t("settings.groupMoney")}</h2>
+        <CashAccountsCard />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold">{t("settings.groupAlerts")}</h2>
+
+        <Card>
+          <form
+            onSubmit={(e) =>
+              save<NotificationSettings>(
+                e,
+                "/settings/notifications",
+                notifyForm,
+                setNotifyForm,
+                setNotifySaving,
+                setNotifyError,
+                setNotifySaved
+              )
+            }
+          >
+            <CardHeader className="!flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
+                <Bell className="size-4.5" />
+              </span>
+              <div>
+                <CardTitle as="h3" className="text-base">{t("settings.alertTitle")}</CardTitle>
+                <CardDescription>{t("settings.alertDesc")}</CardDescription>
               </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={feeSaving || feeLoading}>
-              {feeSaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save changes
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-
-      <Card>
-        <form onSubmit={handleNotifySubmit}>
-          <CardHeader className="!flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-5/15 text-data-5">
-              <Bell className="size-4.5" />
-            </span>
-            <div>
-              <CardTitle as="h2" className="text-base">Admin notifications</CardTitle>
-              <CardDescription>
-                Get a text the moment a borrower submits a new payment proof to review.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {notifyError && (
-              <Alert variant="destructive">
-                <AlertDescription>{notifyError}</AlertDescription>
-              </Alert>
-            )}
-            {notifySuccess && (
-              <Alert variant="success">
-                <AlertDescription>{notifySuccess}</AlertDescription>
-              </Alert>
-            )}
-
-            {notifyLoading ? (
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            ) : (
-              <div className="space-y-1.5">
-                <Label htmlFor="admin_notify_phone">
-                  Notification phone <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="admin_notify_phone"
-                  placeholder="e.g. 09171234567"
-                  value={notifyForm.admin_notify_phone}
-                  onChange={(e) => setNotifyForm({ admin_notify_phone: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Leave blank to turn this alert off.
-                </p>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={notifySaving || notifyLoading}>
-              {notifySaving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-              Save changes
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-      <RepaymentPlansCard />
-      <CashAccountsCard />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <SaveStatus error={notifyError} saved={notifySaved} />
+              {notifyLoading ? (
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="space-y-1.5 sm:max-w-xs">
+                  <Label htmlFor="admin_notify_phone">
+                    {t("settings.alertPhone")} <span className="text-muted-foreground">{t("common.optional")}</span>
+                  </Label>
+                  <Input
+                    id="admin_notify_phone"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="09XXXXXXXXX"
+                    value={notifyForm.admin_notify_phone}
+                    onChange={(e) => setNotifyForm({ admin_notify_phone: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("settings.alertHint")}</p>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <SaveButton saving={notifySaving} disabled={notifyLoading} />
+            </CardFooter>
+          </form>
+        </Card>
+      </section>
     </div>
   );
 }

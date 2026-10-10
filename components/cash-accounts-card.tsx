@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import type { CashAccount } from "@/lib/types";
 
 const EMPTY = { name: "", amount: "" };
@@ -23,6 +24,7 @@ const EMPTY = { name: "", amount: "" };
  * RepaymentPlansCard.
  */
 export function CashAccountsCard() {
+  const { t } = useI18n();
   const [accounts, setAccounts] = useState<CashAccount[] | null>(null);
   const [editing, setEditing] = useState<Record<number, string>>({});
   const [form, setForm] = useState(EMPTY);
@@ -33,8 +35,8 @@ export function CashAccountsCard() {
     api
       .get("/cash-accounts")
       .then((res) => setAccounts(res.data))
-      .catch(() => setError("Couldn't load cash accounts."));
-  }, []);
+      .catch(() => setError(t("cash.loadError")));
+  }, [t]);
 
   useEffect(() => {
     load();
@@ -58,7 +60,7 @@ export function CashAccountsCard() {
       setForm(EMPTY);
       load();
     } catch (err) {
-      fail(err, "Couldn't add that account.");
+      fail(err, t("cash.addError"));
     } finally {
       setSaving(false);
     }
@@ -72,18 +74,18 @@ export function CashAccountsCard() {
       await api.put(`/cash-accounts/${account.id}`, { name: account.name, amount: Number(value) });
       load();
     } catch (err) {
-      fail(err, "Couldn't update that account.");
+      fail(err, t("cash.updateError"));
     }
   };
 
   const remove = async (account: CashAccount) => {
-    if (!window.confirm(`Delete "${account.name}"?`)) return;
+    if (!window.confirm(t("cash.confirmDelete", { name: account.name }))) return;
     setError("");
     try {
       await api.delete(`/cash-accounts/${account.id}`);
       load();
     } catch (err) {
-      fail(err, "Couldn't delete that account.");
+      fail(err, t("cash.deleteError"));
     }
   };
 
@@ -94,10 +96,8 @@ export function CashAccountsCard() {
           <Landmark className="size-4.5" />
         </span>
         <div>
-          <CardTitle as="h2" className="text-base">Cash on hand</CardTitle>
-          <CardDescription>
-            Your GCash, bank, and cash accounts — feeds the Dashboard&apos;s money totals.
-          </CardDescription>
+          <CardTitle as="h3" className="text-base">{t("cash.title")}</CardTitle>
+          <CardDescription>{t("cash.desc")}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -119,6 +119,7 @@ export function CashAccountsCard() {
                     type="number"
                     step="0.01"
                     min="0"
+                    aria-label={t("cash.amountOf", { name: account.name })}
                     value={editing[account.id] ?? account.amount}
                     onChange={(e) => setEditing({ ...editing, [account.id]: e.target.value })}
                     onBlur={() => saveAmount(account)}
@@ -129,7 +130,8 @@ export function CashAccountsCard() {
                   size="icon-sm"
                   variant="ghost"
                   onClick={() => remove(account)}
-                  aria-label={`Delete ${account.name}`}
+                  aria-label={t("cash.deleteLabel", { name: account.name })}
+                  title={t("cash.deleteLabel", { name: account.name })}
                 >
                   <Trash2 className="size-3.5" />
                 </Button>
@@ -137,7 +139,7 @@ export function CashAccountsCard() {
             ))}
             {accounts.length > 0 && (
               <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-medium">
-                <span>Total</span>
+                <span>{t("cash.total")}</span>
                 <span>{formatCurrency(total)}</span>
               </div>
             )}
@@ -146,17 +148,17 @@ export function CashAccountsCard() {
 
         <form onSubmit={add} className="flex items-end gap-2 border-t border-border pt-4">
           <div className="flex-1 space-y-1.5">
-            <Label htmlFor="cash_account_name">Add an account</Label>
+            <Label htmlFor="cash_account_name">{t("cash.addLabel")}</Label>
             <Input
               id="cash_account_name"
               required
-              placeholder="e.g. GCash"
+              placeholder={t("cash.addPlaceholder")}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
             />
           </div>
           <div className="w-32 space-y-1.5">
-            <Label htmlFor="cash_account_amount">Amount</Label>
+            <Label htmlFor="cash_account_amount">{t("schedule.amount")}</Label>
             <Input
               id="cash_account_amount"
               type="number"
@@ -169,7 +171,7 @@ export function CashAccountsCard() {
           </div>
           <Button type="submit" disabled={saving}>
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-            Add
+            {t("cash.add")}
           </Button>
         </form>
       </CardContent>

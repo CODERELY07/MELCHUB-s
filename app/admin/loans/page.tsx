@@ -7,6 +7,7 @@ import { isAxiosError } from "axios";
 
 import api from "@/lib/axios";
 import { LOGIN_PATH } from "@/lib/auth-context";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +18,8 @@ import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AdminLoansList, type BorrowerGroup } from "@/components/admin-loans-list";
 import { LoanHistoryTable } from "@/components/loan-history-table";
+import { PaymentSplitPreview } from "@/components/payment-split-preview";
+import { payableLoans, totalDueNow, totalOwed } from "@/lib/allocate-payment";
 import { formatCurrency, toDateInputValue, todayInManila } from "@/lib/format";
 import { downloadLoansPdf } from "@/lib/loans-pdf";
 import { useRepaymentPlans } from "@/lib/use-repayment-plans";
@@ -26,18 +29,15 @@ import type {
   LoanFormValues,
   LoanHistoryEntry,
   LoanStatus,
+  PaymentAllocation,
   RepaymentPlanRecord,
   SmsLogEntry,
 } from "@/lib/types";
 
-const STATUS_OPTIONS: LoanStatus[] = [
-  "pending",
-  "active",
-  "paid",
-  "overdue",
-  "defaulted",
-  "cancelled",
-];
+const STATUS_OPTIONS: LoanStatus[] = ["pending", "active", "paid", "overdue", "defaulted", "cancelled"];
+
+/** "open" = active + late — what the owner works on day to day, so it's what the page opens on. */
+type StatusFilter = LoanStatus | "open" | "";
 
 const EMPTY_FORM: LoanFormValues = {
   name: "",
@@ -76,7 +76,51 @@ function computeDue(start: string, planKey: string, plans: RepaymentPlanRecord[]
   return date.toISOString().slice(0, 10);
 }
 
+/** A form section with a plain heading, so the long loan form reads as a few short steps. */
+function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
+      <legend className="mb-1 text-sm font-semibold">
+        {title}
+        {hint && <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{hint}</span>}
+      </legend>
+      {children}
+    </fieldset>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  hint: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`flex items-start gap-2 text-sm ${disabled ? "opacity-50" : ""}`}>
+      <input
+        type="checkbox"
+        className="mt-0.5 size-4 rounded border-input"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        {label}
+        <span className="block text-xs text-muted-foreground">{hint}</span>
+      </span>
+    </label>
+  );
+}
+
 export default function AdminLoansPage() {
+  const { t } = useI18n();
   const plans = useRepaymentPlans("staff");
   const [loans, setLoans] = useState<Loan[] | null>(null);
   const [borrowers, setBorrowers] = useState<Borrower[] | null>(null);
@@ -92,11 +136,9 @@ export default function AdminLoansPage() {
   const [dueManual, setDueManual] = useState(false);
   // Which people are expanded to show their individual loans.
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
-  const totalInterest = (loans ?? []).reduce((sum, l) => sum + Number(l.interest_amount), 0);
-  const totalPenalties = (loans ?? []).reduce((sum, l) => sum + Number(l.penalty_amount), 0);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<LoanStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null);
   const [form, setForm] = useState<LoanFormValues>(EMPTY_FORM);
@@ -117,6 +159,14 @@ export default function AdminLoansPage() {
   const [paymentError, setPaymentError] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
 
+  // One payment for all of a person's loans, split on the server.
+  const [personPayGroup, setPersonPayGroup] = useState<BorrowerGroup | null>(null);
+  const [personPayLoans, setPersonPayLoans] = useState<Loan[] | null>(null);
+  const [personPayForm, setPersonPayForm] = useState({ amount: "", note: "" });
+  const [personPayError, setPersonPayError] = useState("");
+  const [savingPersonPay, setSavingPersonPay] = useState(false);
+  const [remindingPersonId, setRemindingPersonId] = useState<number | null>(null);
+
   const [notifyingId, setNotifyingId] = useState<number | null>(null);
   const [notifyingAll, setNotifyingAll] = useState(false);
   const [notifyResult, setNotifyResult] = useState("");
@@ -130,9 +180,15 @@ export default function AdminLoansPage() {
 
   const router = useRouter();
 
+  const totalInterest = (loans ?? []).reduce((sum, l) => sum + Number(l.interest_amount), 0);
+  const totalPenalties = (loans ?? []).reduce((sum, l) => sum + Number(l.penalty_amount), 0);
+  // The default "active and late" view isn't a narrowing filter from the
+  // owner's point of view — it's just the normal view.
+  const isNarrowed = Boolean(search) || (statusFilter !== "" && statusFilter !== "open");
+
   // One entry per person, newest-loan first. People with no loans yet are
-  // included too (so a freshly added client doesn't seem to vanish), but only
-  // while nothing is filtered — a search/status filter is about loans.
+  // included in the normal view (so a freshly added client doesn't seem to
+  // vanish), but not while searching or looking at one specific status.
   const groups = useMemo<BorrowerGroup[]>(() => {
     const map = new Map<number, BorrowerGroup>();
 
@@ -148,9 +204,11 @@ export default function AdminLoansPage() {
       map.set(loan.borrower_id, group);
     }
 
-    if (!search && !statusFilter) {
+    if (!isNarrowed) {
       for (const borrower of borrowers ?? []) {
-        if (!map.has(borrower.id)) {
+        // Only people with no loans at all (new clients waiting for their
+        // first one) — not people whose loans are all finished.
+        if (!map.has(borrower.id) && (borrower.loans_count ?? 0) === 0) {
           map.set(borrower.id, {
             borrowerId: borrower.id,
             name: borrower.name,
@@ -163,12 +221,11 @@ export default function AdminLoansPage() {
     }
 
     return [...map.values()];
-  }, [loans, borrowers, search, statusFilter]);
+  }, [loans, borrowers, isNarrowed]);
 
   // While searching/filtering, everything is expanded — the point of a
   // search is to see the matching loans, not to click through to them.
-  const forceOpen = Boolean(search || statusFilter);
-  const isOpen = (borrowerId: number) => forceOpen || openIds.has(borrowerId);
+  const isOpen = (borrowerId: number) => isNarrowed || openIds.has(borrowerId);
   const expandable = groups.filter((g) => g.loans.length > 0);
   const allOpen = expandable.length > 0 && expandable.every((g) => openIds.has(g.borrowerId));
 
@@ -206,9 +263,9 @@ export default function AdminLoansPage() {
           router.push(LOGIN_PATH);
           return;
         }
-        setError("Couldn't load loans.");
+        setError(t("loans.loadError"));
       });
-  }, [router, search, statusFilter]);
+  }, [router, search, statusFilter, t]);
 
   useEffect(() => {
     // Debounced so typing in the search box doesn't fire a request per
@@ -288,7 +345,7 @@ export default function AdminLoansPage() {
 
     if (!editingLoan && borrowerMode === "existing") {
       if (!selectedBorrowerId) {
-        setFormError("Please choose which borrower this loan is for.");
+        setFormError(t("loans.errorPickBorrower"));
         setSaving(false);
         return;
       }
@@ -314,21 +371,15 @@ export default function AdminLoansPage() {
       loadLoans();
     } catch (err: unknown) {
       const responseData = isAxiosError(err) ? err.response?.data : undefined;
-      const messages = responseData?.errors as
-        | Record<string, string[]>
-        | undefined;
-      setFormError(
-        messages
-          ? Object.values(messages).flat().join(" ")
-          : responseData?.message || "Couldn't save this loan."
-      );
+      const messages = responseData?.errors as Record<string, string[]> | undefined;
+      setFormError(messages ? Object.values(messages).flat().join(" ") : responseData?.message || t("loans.errorSave"));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (loan: Loan) => {
-    if (!window.confirm(`Delete loan ${loan.loan_number} for ${loan.name}? This can't be undone.`)) {
+    if (!window.confirm(t("loans.confirmDelete", { number: loan.loan_number ?? "", name: loan.name }))) {
       return;
     }
 
@@ -337,7 +388,7 @@ export default function AdminLoansPage() {
       await api.delete(`/loans/${loan.id}`);
       loadLoans();
     } catch {
-      setError("Couldn't delete this loan.");
+      setError(t("loans.errorDelete"));
     } finally {
       setDeletingId(null);
     }
@@ -354,17 +405,21 @@ export default function AdminLoansPage() {
     api
       .get(`/loans/${loan.id}/history`)
       .then((res) => setHistoryEntries(res.data))
-      .catch(() => setHistoryError("Couldn't load this loan's history."));
+      .catch(() => setHistoryError(t("loans.errorHistory")));
 
     api
       .get(`/loans/${loan.id}/sms-log`)
       .then((res) => setSmsLog(res.data))
-      .catch(() => setSmsLogError("Couldn't load this loan's message log."));
+      .catch(() => setSmsLogError(t("loans.errorSmsLog")));
   };
 
   const handleRemovePenalty = async (entry: LoanHistoryEntry) => {
     if (!historyLoan || !entry.id) return;
-    if (!window.confirm(`Remove this ${formatCurrency(entry.amount)} late fee from ${historyLoan.loan_number}?`)) {
+    if (
+      !window.confirm(
+        t("loans.confirmRemoveFee", { amount: formatCurrency(entry.amount), number: historyLoan.loan_number ?? "" })
+      )
+    ) {
       return;
     }
 
@@ -375,7 +430,7 @@ export default function AdminLoansPage() {
       setHistoryEntries(res.data);
       loadLoans();
     } catch {
-      setHistoryError("Couldn't remove that late fee.");
+      setHistoryError(t("loans.errorRemoveFee"));
     }
   };
 
@@ -400,13 +455,67 @@ export default function AdminLoansPage() {
     } catch (err: unknown) {
       const responseData = isAxiosError(err) ? err.response?.data : undefined;
       const messages = responseData?.errors as Record<string, string[]> | undefined;
-      setPaymentError(
-        messages
-          ? Object.values(messages).flat().join(" ")
-          : responseData?.message || "Couldn't record this payment."
-      );
+      setPaymentError(messages ? Object.values(messages).flat().join(" ") : responseData?.message || t("loans.errorPayment"));
     } finally {
       setSavingPayment(false);
+    }
+  };
+
+  const openPersonPayment = (group: BorrowerGroup) => {
+    setPersonPayGroup(group);
+    setPersonPayLoans(null);
+    setPersonPayForm({ amount: "", note: "" });
+    setPersonPayError("");
+
+    // Fetched fresh rather than taken from the list: the list may be
+    // filtered, and the split must use every unpaid loan.
+    api
+      .get(`/borrowers/${group.borrowerId}/open-loans`)
+      .then((res) => setPersonPayLoans(payableLoans(res.data)))
+      .catch(() => setPersonPayError(t("loans.errorPersonLoans")));
+  };
+
+  const handlePersonPaySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!personPayGroup) return;
+
+    setPersonPayError("");
+    setSavingPersonPay(true);
+
+    try {
+      const res = await api.post(`/borrowers/${personPayGroup.borrowerId}/payments`, personPayForm);
+      const allocation = res.data.allocation as PaymentAllocation[];
+      setNotifyError("");
+      setNotifyResult(
+        t("loans.personPaySaved", {
+          name: personPayGroup.name,
+          amount: formatCurrency(Number(personPayForm.amount)),
+          list: allocation.map((a) => `${a.loan_number} ${formatCurrency(a.amount)}`).join(", "),
+        })
+      );
+      setPersonPayGroup(null);
+      loadLoans();
+    } catch (err: unknown) {
+      const responseData = isAxiosError(err) ? err.response?.data : undefined;
+      const messages = responseData?.errors as Record<string, string[]> | undefined;
+      setPersonPayError(messages ? Object.values(messages).flat().join(" ") : responseData?.message || t("loans.errorPayment"));
+    } finally {
+      setSavingPersonPay(false);
+    }
+  };
+
+  const handlePersonRemind = async (group: BorrowerGroup) => {
+    setNotifyResult("");
+    setNotifyError("");
+    setRemindingPersonId(group.borrowerId);
+
+    try {
+      await api.post(`/borrowers/${group.borrowerId}/notify`);
+      setNotifyResult(t("loans.remindedPerson", { name: group.name }));
+    } catch (err: unknown) {
+      setNotifyError((isAxiosError(err) && err.response?.data?.message) || t("loans.errorRemind"));
+    } finally {
+      setRemindingPersonId(null);
     }
   };
 
@@ -417,17 +526,17 @@ export default function AdminLoansPage() {
 
     try {
       await api.post(`/loans/${loan.id}/notify`);
-      setNotifyResult(`Notified ${loan.name}.`);
+      setNotifyResult(t("loans.remindedOne", { name: loan.name }));
       loadLoans();
     } catch (err: unknown) {
-      setNotifyError((isAxiosError(err) && err.response?.data?.message) || "Couldn't send that notification.");
+      setNotifyError((isAxiosError(err) && err.response?.data?.message) || t("loans.errorRemind"));
     } finally {
       setNotifyingId(null);
     }
   };
 
   const handleNotifyAllDue = async () => {
-    if (!window.confirm("Send a reminder SMS to every borrower whose loan is due today or overdue?")) {
+    if (!window.confirm(t("loans.confirmRemindAll"))) {
       return;
     }
 
@@ -439,12 +548,13 @@ export default function AdminLoansPage() {
       const res = await api.post("/loans/notify-due");
       const { sent, failed } = res.data as { sent: string[]; failed: string[] };
       setNotifyResult(
-        `Notified ${sent.length} borrower${sent.length === 1 ? "" : "s"}` +
-          (failed.length ? `, ${failed.length} failed (${failed.join(", ")}).` : ".")
+        failed.length
+          ? t("loans.remindedSomeFailed", { sent: sent.length, failed: failed.length, list: failed.join(", ") })
+          : t("loans.remindedAll", { sent: sent.length })
       );
       loadLoans();
     } catch (err: unknown) {
-      setNotifyError((isAxiosError(err) && err.response?.data?.message) || "Couldn't send notifications.");
+      setNotifyError((isAxiosError(err) && err.response?.data?.message) || t("loans.errorRemind"));
     } finally {
       setNotifyingAll(false);
     }
@@ -453,7 +563,11 @@ export default function AdminLoansPage() {
   const openMessageModal = (loan: Loan) => {
     setMessageLoan(loan);
     setMessageText(
-      `Hi ${loan.name}, this is MELCHUB regarding your loan ${loan.loan_number} (balance: ${formatCurrency(loan.balance)}). `
+      t("loans.smsTemplate", {
+        name: loan.name,
+        number: loan.loan_number ?? "",
+        balance: formatCurrency(Math.max(0, loan.balance)),
+      })
     );
     setMessageError("");
     setMessageModalOpen(true);
@@ -469,70 +583,69 @@ export default function AdminLoansPage() {
     try {
       await api.post(`/loans/${messageLoan.id}/sms`, { message: messageText });
       setMessageModalOpen(false);
-      setNotifyResult(`Message sent to ${messageLoan.name}.`);
+      setNotifyResult(t("loans.textSent", { name: messageLoan.name }));
       loadLoans();
     } catch (err: unknown) {
-      setMessageError((isAxiosError(err) && err.response?.data?.message) || "Couldn't send that message.");
+      setMessageError((isAxiosError(err) && err.response?.data?.message) || t("loans.errorText"));
     } finally {
       setSendingMessage(false);
     }
   };
 
+  const usesAutoFee = form.auto_penalty && form.installments_enabled;
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Loans</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage borrowers and their loan records.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.loans")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("loans.subtitle")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            onClick={() => downloadLoansPdf(loans ?? [])}
-            disabled={!loans || loans.length === 0}
-          >
-            <Download className="size-4" />
-            Export PDF
-          </Button>
-          <Button variant="outline" onClick={handleNotifyAllDue} disabled={notifyingAll}>
-            {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
-            Notify all due
-          </Button>
           <Button onClick={() => openCreateModal()}>
             <Plus className="size-4" />
-            New loan
+            {t("loans.newLoan")}
+          </Button>
+          <Button variant="outline" onClick={handleNotifyAllDue} disabled={notifyingAll} title={t("loans.remindAllHint")}>
+            {notifyingAll ? <Loader2 className="size-4 animate-spin" /> : <BellRing className="size-4" />}
+            {t("loans.remindAll")}
+          </Button>
+          <Button variant="outline" onClick={() => downloadLoansPdf(loans ?? [])} disabled={!loans || loans.length === 0}>
+            <Download className="size-4" />
+            {t("loans.exportPdf")}
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <div className="relative flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search by name, email, or loan #"
+            placeholder={t("loans.searchPlaceholder")}
+            aria-label={t("loans.searchPlaceholder")}
             className="pl-8"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select
-          className="sm:w-48"
+          className="sm:w-56"
+          aria-label={t("loans.filterLabel")}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as LoanStatus | "")}
+          onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
         >
-          <option value="">All statuses</option>
+          <option value="open">{t("loans.filterOpen")}</option>
+          <option value="">{t("loans.filterAll")}</option>
           {STATUS_OPTIONS.map((status) => (
             <option key={status} value={status}>
-              {status}
+              {t("loans.filterOnly", { status: t(`status.${status}`) })}
             </option>
           ))}
         </Select>
-        {!forceOpen && expandable.length > 1 && (
+        {!isNarrowed && expandable.length > 1 && (
           <Button variant="outline" onClick={toggleAll} className="sm:ml-auto">
             {allOpen ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
-            {allOpen ? "Collapse all" : "Expand all"}
+            {allOpen ? t("loans.collapseAll") : t("loans.expandAll")}
           </Button>
         )}
       </div>
@@ -560,22 +673,24 @@ export default function AdminLoansPage() {
         </div>
       ) : groups.length === 0 ? (
         <div className="rounded-xl border border-border py-8 text-center text-sm text-muted-foreground">
-          {search || statusFilter ? "No loans match your search/filter." : "No loans yet. Create the first one."}
+          {isNarrowed ? t("loans.emptyFiltered") : statusFilter === "open" ? t("loans.emptyOpen") : t("loans.emptyAll")}
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border p-4">
-              <div className="text-xs text-muted-foreground">Total interest (profit)</div>
-              <div className="text-2xl font-bold">{formatCurrency(totalInterest)}</div>
-              <div className="text-xs text-muted-foreground">Across the {loans.length} loan{loans.length === 1 ? "" : "s"} shown</div>
+          {loans.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-border p-4">
+                <div className="text-xs text-muted-foreground">{t("loans.sumInterest")}</div>
+                <div className="text-2xl font-bold tabular-nums">{formatCurrency(totalInterest)}</div>
+                <div className="text-xs text-muted-foreground">{t("loans.sumScope", { count: loans.length })}</div>
+              </div>
+              <div className="rounded-xl border border-border p-4">
+                <div className="text-xs text-muted-foreground">{t("loans.sumFees")}</div>
+                <div className="text-2xl font-bold tabular-nums">{formatCurrency(totalPenalties)}</div>
+                <div className="text-xs text-muted-foreground">{t("loans.sumScope", { count: loans.length })}</div>
+              </div>
             </div>
-            <div className="rounded-xl border border-border p-4">
-              <div className="text-xs text-muted-foreground">Late fees charged</div>
-              <div className="text-2xl font-bold">{formatCurrency(totalPenalties)}</div>
-              <div className="text-xs text-muted-foreground">Extra profit on top of interest</div>
-            </div>
-          </div>
+          )}
 
           <AdminLoansList
             groups={groups}
@@ -592,6 +707,11 @@ export default function AdminLoansPage() {
               onEdit: openEditModal,
               onDelete: handleDelete,
             }}
+            person={{
+              remindingId: remindingPersonId,
+              onRemind: handlePersonRemind,
+              onPayment: openPersonPayment,
+            }}
           />
         </>
       )}
@@ -599,349 +719,306 @@ export default function AdminLoansPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingLoan ? `Edit loan ${editingLoan.loan_number ?? ""}` : "New loan"}
-        description="Borrower details and loan terms."
+        title={editingLoan ? t("loans.editTitle", { number: editingLoan.loan_number ?? "" }) : t("loans.newLoan")}
+        description={editingLoan ? t("loans.editDesc") : t("loans.newDesc")}
       >
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {formError && (
             <Alert variant="destructive">
               <AlertDescription>{formError}</AlertDescription>
             </Alert>
           )}
 
-          {!editingLoan && (
-            <div className="flex gap-1 rounded-lg border border-border p-1">
-              <Button
-                type="button"
-                size="sm"
-                className="flex-1"
-                variant={borrowerMode === "new" ? "default" : "ghost"}
-                onClick={() => setBorrowerMode("new")}
-              >
-                New borrower
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                className="flex-1"
-                variant={borrowerMode === "existing" ? "default" : "ghost"}
-                onClick={() => setBorrowerMode("existing")}
-              >
-                Existing borrower
-              </Button>
-            </div>
-          )}
+          <FormSection title={t("loans.sectionWho")}>
+            {!editingLoan && (
+              <div className="flex gap-1 rounded-lg bg-muted p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="flex-1"
+                  variant={borrowerMode === "new" ? "default" : "ghost"}
+                  onClick={() => setBorrowerMode("new")}
+                >
+                  {t("loans.modeNew")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="flex-1"
+                  variant={borrowerMode === "existing" ? "default" : "ghost"}
+                  onClick={() => setBorrowerMode("existing")}
+                >
+                  {t("loans.modeExisting")}
+                </Button>
+              </div>
+            )}
 
-          {!editingLoan && borrowerMode === "existing" ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="borrower_id">Borrower</Label>
-              <Select
-                id="borrower_id"
-                required
-                value={selectedBorrowerId}
-                onChange={(e) => setSelectedBorrowerId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Select a borrower&hellip;</option>
-                {(borrowers ?? []).map((borrower) => (
-                  <option key={borrower.id} value={borrower.id}>
-                    {borrower.name} {borrower.username ? `(@${borrower.username})` : "(no login)"}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Gives this borrower a new loan without touching their earlier ones.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2 space-y-1.5">
-                <Label htmlFor="name">Full name</Label>
-                <Input
-                  id="name"
+            {!editingLoan && borrowerMode === "existing" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="borrower_id">{t("loans.colBorrower")}</Label>
+                <Select
+                  id="borrower_id"
                   required
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 size-4 rounded border-input"
-                    checked={needsLogin}
-                    onChange={(e) => setNeedsLogin(e.target.checked)}
-                  />
-                  <span>
-                    This person will use the borrower portal
-                    <span className="block text-xs text-muted-foreground">
-                      Turn off for someone who&apos;ll never log in — just track their loan under their name,
-                      with no username or password to set up.
-                    </span>
-                  </span>
-                </label>
-              </div>
-
-              {needsLogin && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    required
-                    placeholder="Used to log in to the borrower portal"
-                    value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="email">
-                  Email <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="borrower@gmail.com"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
-
-              {needsLogin && (
-                <div className="space-y-1.5">
-                  <Label htmlFor="password">
-                    Password <span className="text-muted-foreground">(optional)</span>
-                  </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder={editingLoan ? "Leave blank to keep current" : ""}
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  />
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="location">Location</Label>
-                <Input
-                  id="location"
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="credit_limit">
-                  Credit limit <span className="text-muted-foreground">(optional)</span>
-                </Label>
-                <Input
-                  id="credit_limit"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="How much this client may borrow in total"
-                  value={form.credit_limit}
-                  onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="total_loan">Principal amount</Label>
-              <Input
-                id="total_loan"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                value={form.total_loan}
-                onChange={(e) => setForm({ ...form, total_loan: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="total_paid">Total paid</Label>
-              <Input
-                id="total_paid"
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.total_paid}
-                onChange={(e) => setForm({ ...form, total_paid: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="interest_rate">Interest rate (% per day)</Label>
-              <Input
-                id="interest_rate"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={form.interest_rate}
-                onChange={(e) => setForm({ ...form, interest_rate: e.target.value })}
-              />
-              <label className="mt-2 flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4 rounded border-input"
-                  checked={form.compounds_interest}
-                  onChange={(e) => setForm({ ...form, compounds_interest: e.target.checked })}
-                />
-                <span>
-                  Compound interest daily
-                  <span className="block text-xs text-muted-foreground">
-                    Each day&apos;s interest is added to the balance, so the next day&apos;s interest is
-                    calculated on that larger amount — not just the original principal. Recorded as a real
-                    entry every day, not just calculated on the spot.
-                  </span>
-                </span>
-              </label>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="repayment_plan">Repayment plan</Label>
-              <Select
-                id="repayment_plan"
-                value={form.repayment_plan}
-                onChange={(e) => setForm(withAutoDue({ ...form, repayment_plan: e.target.value }))}
-              >
-                {(plans ?? [])
-                  .filter((plan) => plan.is_active || plan.key === form.repayment_plan)
-                  .map((plan) => (
-                    <option key={plan.key} value={plan.key}>
-                      {plan.name}
+                  value={selectedBorrowerId}
+                  onChange={(e) => setSelectedBorrowerId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">{t("loans.pickBorrower")}</option>
+                  {(borrowers ?? []).map((borrower) => (
+                    <option key={borrower.id} value={borrower.id}>
+                      {borrower.name} {borrower.username ? `(@${borrower.username})` : `(${t("common.noLogin")})`}
                     </option>
                   ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Sets the wording of due-date reminders and how far a missed payment pushes the due date. Create more plans in Settings.
-              </p>
-              <label className="mt-2 flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4 rounded border-input"
-                  checked={form.installments_enabled}
-                  onChange={(e) => setForm({ ...form, installments_enabled: e.target.checked })}
+                </Select>
+                <p className="text-xs text-muted-foreground">{t("loans.existingHint")}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="name">{t("profile.name")}</Label>
+                  <Input id="name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone">{t("profile.phone")}</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="09XXXXXXXXX"
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="location">{t("profile.address")}</Label>
+                  <Input id="location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">
+                    {t("profile.email")} <span className="text-muted-foreground">{t("common.optional")}</span>
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="credit_limit">
+                    {t("loans.creditLimit")} <span className="text-muted-foreground">{t("common.optional")}</span>
+                  </Label>
+                  <Input
+                    id="credit_limit"
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={form.credit_limit}
+                    onChange={(e) => setForm({ ...form, credit_limit: e.target.value })}
+                    aria-describedby="credit_limit_hint"
+                  />
+                  <p id="credit_limit_hint" className="text-xs text-muted-foreground">{t("loans.creditLimitHint")}</p>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <Toggle
+                    checked={needsLogin}
+                    onChange={setNeedsLogin}
+                    label={t("loans.usesPortal")}
+                    hint={t("loans.usesPortalHint")}
+                  />
+                </div>
+
+                {needsLogin && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="username">{t("login.username")}</Label>
+                      <Input
+                        id="username"
+                        required
+                        autoComplete="off"
+                        value={form.username}
+                        onChange={(e) => setForm({ ...form, username: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="password">
+                        {t("login.password")}{" "}
+                        <span className="text-muted-foreground">{editingLoan ? t("loans.passwordKeep") : ""}</span>
+                      </Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </FormSection>
+
+          <FormSection title={t("loans.sectionMoney")}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="total_loan">{t("loans.amountLent")}</Label>
+                <Input
+                  id="total_loan"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={form.total_loan}
+                  onChange={(e) => setForm({ ...form, total_loan: e.target.value })}
                 />
-                <span>
-                  Pays in installments
-                  <span className="block text-xs text-muted-foreground">
-                    Turn off for this borrower to skip late fees and due-date push-outs.
-                  </span>
-                </span>
-              </label>
-              <label
-                className={`mt-2 flex items-start gap-2 text-sm ${form.installments_enabled ? "" : "opacity-50"}`}
-              >
-                <input
-                  type="checkbox"
-                  className="mt-0.5 size-4 rounded border-input"
-                  checked={form.auto_penalty && form.installments_enabled}
-                  disabled={!form.installments_enabled}
-                  onChange={(e) => setForm({ ...form, auto_penalty: e.target.checked })}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="total_paid">{t("loans.alreadyPaid")}</Label>
+                <Input
+                  id="total_paid"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  value={form.total_paid}
+                  onChange={(e) => setForm({ ...form, total_paid: e.target.value })}
+                  aria-describedby="total_paid_hint"
                 />
-                <span>
-                  Charge the late fee automatically
-                  <span className="block text-xs text-muted-foreground">
-                    Every week, if the total paid is below what should be paid by then, the late fee from Settings is
-                    added by itself and the next week&apos;s deadline begins. Never charges for weeks before this was
-                    turned on.
-                  </span>
-                </span>
-              </label>
-            </div>
+                <p id="total_paid_hint" className="text-xs text-muted-foreground">{t("loans.alreadyPaidHint")}</p>
+              </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                id="status"
-                value={form.status}
-                onChange={(e) =>
-                  setForm({ ...form, status: e.target.value as LoanStatus })
-                }
-              >
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </Select>
-            </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="start_date">{t("loans.startDate")}</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  required
+                  value={form.start_date}
+                  onChange={(e) => setForm(withAutoDue({ ...form, start_date: e.target.value }))}
+                />
+              </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="start_date">Start date</Label>
-              <Input
-                id="start_date"
-                type="date"
-                required
-                value={form.start_date}
-                onChange={(e) => setForm(withAutoDue({ ...form, start_date: e.target.value }))}
-              />
+              <div className="space-y-1.5">
+                <Label htmlFor="due_date">{usesAutoFee ? t("loans.firstDue") : t("loan.dueDate")}</Label>
+                <Input
+                  id="due_date"
+                  type="date"
+                  required
+                  value={form.due_date}
+                  onChange={(e) => {
+                    setDueManual(true);
+                    setForm({ ...form, due_date: e.target.value });
+                  }}
+                />
+                {!editingLoan && !dueManual && <p className="text-xs text-muted-foreground">{t("loans.dueAuto")}</p>}
+                {usesAutoFee && <p className="text-xs text-muted-foreground">{t("loans.dueRolls")}</p>}
+              </div>
             </div>
+          </FormSection>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="due_date">{form.auto_penalty && form.installments_enabled ? "First payment due" : "Due date"}</Label>
-              <Input
-                id="due_date"
-                type="date"
-                required
-                value={form.due_date}
-                onChange={(e) => {
-                  setDueManual(true);
-                  setForm({ ...form, due_date: e.target.value });
-                }}
-              />
-              {!editingLoan && !dueManual && (
-                <p className="text-xs text-muted-foreground">Set from the start date and plan — change it if needed.</p>
-              )}
-              {form.auto_penalty && form.installments_enabled && (
-                <p className="text-xs text-muted-foreground">
-                  The next payment date moves forward by itself every period after this.
+          <FormSection title={t("loans.sectionRules")}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="interest_rate">{t("loans.rate")}</Label>
+                <Input
+                  id="interest_rate"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={form.interest_rate}
+                  onChange={(e) => setForm({ ...form, interest_rate: e.target.value })}
+                  aria-describedby="interest_rate_hint"
+                />
+                <p id="interest_rate_hint" className="text-xs text-muted-foreground">
+                  {t("loans.rateHint", {
+                    amount: formatCurrency((Number(form.total_loan) || 0) * ((Number(form.interest_rate) || 0) / 100)),
+                  })}
                 </p>
-              )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="repayment_plan">{t("loans.plan")}</Label>
+                <Select
+                  id="repayment_plan"
+                  value={form.repayment_plan}
+                  disabled={!form.installments_enabled}
+                  onChange={(e) => setForm(withAutoDue({ ...form, repayment_plan: e.target.value }))}
+                >
+                  {(plans ?? [])
+                    .filter((plan) => plan.is_active || plan.key === form.repayment_plan)
+                    .map((plan) => (
+                      <option key={plan.key} value={plan.key}>
+                        {plan.name}
+                      </option>
+                    ))}
+                </Select>
+                <p className="text-xs text-muted-foreground">{t("loans.planHint")}</p>
+              </div>
             </div>
 
-            <div className="sm:col-span-2 space-y-1.5">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-          </div>
+            <Toggle
+              checked={form.installments_enabled}
+              onChange={(v) => setForm({ ...form, installments_enabled: v })}
+              label={t("loans.installments")}
+              hint={t("loans.installmentsHint")}
+            />
+            <Toggle
+              checked={usesAutoFee}
+              disabled={!form.installments_enabled}
+              onChange={(v) => setForm({ ...form, auto_penalty: v })}
+              label={t("loans.autoFee")}
+              hint={t("loans.autoFeeHint")}
+            />
+            <Toggle
+              checked={form.compounds_interest}
+              onChange={(v) => setForm({ ...form, compounds_interest: v })}
+              label={t("loans.compound")}
+              hint={t("loans.compoundHint")}
+            />
+          </FormSection>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setModalOpen(false)}
-            >
-              Cancel
+          <FormSection title={t("loans.sectionOther")}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="status">{t("loans.colStatus")}</Label>
+                <Select
+                  id="status"
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value as LoanStatus })}
+                >
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {t(`status.${status}`)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="notes">
+                  {t("loans.notes")} <span className="text-muted-foreground">{t("common.optional")}</span>
+                </Label>
+                <Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              </div>
+            </div>
+          </FormSection>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : editingLoan ? (
-                "Save changes"
-              ) : (
-                "Create loan"
-              )}
+              {saving ? <Loader2 className="size-4 animate-spin" /> : editingLoan ? t("common.saveChanges") : t("loans.createLoan")}
             </Button>
           </div>
         </form>
@@ -950,8 +1027,12 @@ export default function AdminLoansPage() {
       <Modal
         open={historyModalOpen}
         onClose={() => setHistoryModalOpen(false)}
-        title={`History for ${historyLoan?.loan_number ?? ""}`}
-        description={historyLoan ? `${historyLoan.name} · ${formatCurrency(historyLoan.balance)} remaining` : undefined}
+        title={t("loans.historyTitle", { number: historyLoan?.loan_number ?? "" })}
+        description={
+          historyLoan
+            ? t("loans.historyDesc", { name: historyLoan.name, amount: formatCurrency(Math.max(0, historyLoan.balance)) })
+            : undefined
+        }
       >
         {historyError && (
           <Alert variant="destructive">
@@ -967,7 +1048,7 @@ export default function AdminLoansPage() {
         )}
 
         <div className="mt-6">
-          <h3 className="mb-2 text-sm font-semibold">Messages sent</h3>
+          <h3 className="mb-2 text-sm font-semibold">{t("loans.textsSent")}</h3>
           {smsLogError && (
             <Alert variant="destructive">
               <AlertDescription>{smsLogError}</AlertDescription>
@@ -978,9 +1059,7 @@ export default function AdminLoansPage() {
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>
           ) : smsLog && smsLog.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No messages sent to this loan yet.
-            </p>
+            <p className="py-4 text-center text-sm text-muted-foreground">{t("loans.noTexts")}</p>
           ) : (
             <div className="max-h-64 overflow-y-auto rounded-lg border border-border">
               <ul className="divide-y divide-border">
@@ -988,19 +1067,14 @@ export default function AdminLoansPage() {
                   <li key={entry.id} className="flex flex-col gap-1 px-3 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(entry.created_at).toLocaleString("en-PH", {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                        })}
+                        {new Date(entry.created_at).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })}
                       </span>
                       <Badge variant={entry.success ? "success" : "destructive"}>
-                        {entry.success ? "sent" : "failed"}
+                        {entry.success ? t("loans.textOk") : t("loans.textFailed")}
                       </Badge>
                     </div>
                     <p className="text-foreground/90">{entry.message}</p>
-                    {!entry.success && entry.error && (
-                      <p className="text-xs text-destructive">{entry.error}</p>
-                    )}
+                    {!entry.success && entry.error && <p className="text-xs text-destructive">{entry.error}</p>}
                   </li>
                 ))}
               </ul>
@@ -1012,8 +1086,15 @@ export default function AdminLoansPage() {
       <Modal
         open={paymentModalOpen}
         onClose={() => setPaymentModalOpen(false)}
-        title={`Record payment for ${paymentLoan?.name ?? ""}`}
-        description={paymentLoan ? `Current balance: ${formatCurrency(paymentLoan.balance)}` : undefined}
+        title={t("loans.paymentTitle", { name: paymentLoan?.name ?? "" })}
+        description={
+          paymentLoan
+            ? t("loans.paymentDesc", {
+                number: paymentLoan.loan_number ?? "",
+                amount: formatCurrency(Math.max(0, paymentLoan.balance)),
+              })
+            : undefined
+        }
       >
         <form onSubmit={handlePaymentSubmit} className="flex flex-col gap-4">
           {paymentError && (
@@ -1023,10 +1104,11 @@ export default function AdminLoansPage() {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="payment_amount">Amount received</Label>
+            <Label htmlFor="payment_amount">{t("loans.paymentAmount")}</Label>
             <Input
               id="payment_amount"
               type="number"
+              inputMode="decimal"
               step="0.01"
               min="0.01"
               required
@@ -1037,11 +1119,11 @@ export default function AdminLoansPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="payment_note">
-              Note <span className="text-muted-foreground">(optional)</span>
+              {t("loans.paymentNote")} <span className="text-muted-foreground">{t("common.optional")}</span>
             </Label>
             <Textarea
               id="payment_note"
-              placeholder="e.g. Paid via GCash"
+              placeholder={t("loans.paymentNotePlaceholder")}
               value={paymentForm.note}
               onChange={(e) => setPaymentForm({ ...paymentForm, note: e.target.value })}
             />
@@ -1049,10 +1131,120 @@ export default function AdminLoansPage() {
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setPaymentModalOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={savingPayment}>
-              {savingPayment ? <Loader2 className="size-4 animate-spin" /> : "Record payment"}
+              {savingPayment ? <Loader2 className="size-4 animate-spin" /> : t("loans.actionPayment")}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={personPayGroup !== null}
+        onClose={() => setPersonPayGroup(null)}
+        title={t("loans.personPayTitle", { name: personPayGroup?.name ?? "" })}
+        description={t("loans.personPayDesc")}
+      >
+        <form onSubmit={handlePersonPaySubmit} className="flex flex-col gap-4">
+          {personPayError && (
+            <Alert variant="destructive">
+              <AlertDescription>{personPayError}</AlertDescription>
+            </Alert>
+          )}
+
+          {!personPayLoans ? (
+            !personPayError && (
+              <div className="flex justify-center py-6">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            )
+          ) : personPayLoans.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("payAll.nothingOwed")}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border p-3">
+                  <div className="text-xs text-muted-foreground">{t("split.dueNowTotal")}</div>
+                  <div className="text-lg font-semibold tabular-nums">{formatCurrency(totalDueNow(personPayLoans))}</div>
+                </div>
+                <div className="rounded-lg border border-border p-3">
+                  <div className="text-xs text-muted-foreground">{t("split.owedTotal")}</div>
+                  <div className="text-lg font-semibold tabular-nums">{formatCurrency(totalOwed(personPayLoans))}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="person_payment_amount">{t("loans.paymentAmount")}</Label>
+                <Input
+                  id="person_payment_amount"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0.01"
+                  max={totalOwed(personPayLoans)}
+                  required
+                  value={personPayForm.amount}
+                  onChange={(e) => setPersonPayForm({ ...personPayForm, amount: e.target.value })}
+                  aria-describedby="person_payment_max"
+                />
+                <p id="person_payment_max" className="text-xs text-muted-foreground">
+                  {t("split.max", { amount: formatCurrency(totalOwed(personPayLoans)) })}
+                </p>
+                <div className="flex flex-wrap gap-x-4">
+                  {totalDueNow(personPayLoans) > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto px-0 text-primary"
+                      onClick={() => setPersonPayForm({ ...personPayForm, amount: String(totalDueNow(personPayLoans)) })}
+                    >
+                      {t("split.useDue", { amount: formatCurrency(totalDueNow(personPayLoans)) })}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto px-0 text-primary"
+                    onClick={() => setPersonPayForm({ ...personPayForm, amount: String(totalOwed(personPayLoans)) })}
+                  >
+                    {t("split.useAll", { amount: formatCurrency(totalOwed(personPayLoans)) })}
+                  </Button>
+                </div>
+              </div>
+
+              <PaymentSplitPreview loans={personPayLoans} amount={Number(personPayForm.amount) || 0} />
+
+              <div className="space-y-1.5">
+                <Label htmlFor="person_payment_note">
+                  {t("loans.paymentNote")} <span className="text-muted-foreground">{t("common.optional")}</span>
+                </Label>
+                <Textarea
+                  id="person_payment_note"
+                  placeholder={t("loans.paymentNotePlaceholder")}
+                  value={personPayForm.note}
+                  onChange={(e) => setPersonPayForm({ ...personPayForm, note: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setPersonPayGroup(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                savingPersonPay ||
+                !personPayLoans ||
+                personPayLoans.length === 0 ||
+                Math.round(Number(personPayForm.amount) * 100) > Math.round(totalOwed(personPayLoans) * 100)
+              }
+            >
+              {savingPersonPay ? <Loader2 className="size-4 animate-spin" /> : t("loans.actionPayment")}
             </Button>
           </div>
         </form>
@@ -1061,8 +1253,8 @@ export default function AdminLoansPage() {
       <Modal
         open={messageModalOpen}
         onClose={() => setMessageModalOpen(false)}
-        title={`Message ${messageLoan?.name ?? ""}`}
-        description={messageLoan?.phone ? `Sent by SMS to ${messageLoan.phone}` : undefined}
+        title={t("loans.textTitle", { name: messageLoan?.name ?? "" })}
+        description={messageLoan?.phone ? t("loans.textDesc", { phone: messageLoan.phone }) : undefined}
       >
         <form onSubmit={handleSendMessage} className="flex flex-col gap-4">
           {messageError && (
@@ -1072,7 +1264,7 @@ export default function AdminLoansPage() {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="message_text">Message</Label>
+            <Label htmlFor="message_text">{t("loans.textLabel")}</Label>
             <Textarea
               id="message_text"
               required
@@ -1081,15 +1273,15 @@ export default function AdminLoansPage() {
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">{messageText.length}/640</p>
+            <p className="text-xs text-muted-foreground tabular-nums">{messageText.length}/640</p>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setMessageModalOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={sendingMessage}>
-              {sendingMessage ? <Loader2 className="size-4 animate-spin" /> : "Send SMS"}
+              {sendingMessage ? <Loader2 className="size-4 animate-spin" /> : t("loans.textSend")}
             </Button>
           </div>
         </form>

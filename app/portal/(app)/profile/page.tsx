@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar } from "@/components/ui/avatar";
+import { useI18n } from "@/lib/i18n";
 
 function extractErrorMessage(err: unknown, fallback: string): string {
   if (!isAxiosError(err)) return fallback;
@@ -29,6 +30,7 @@ function extractErrorMessage(err: unknown, fallback: string): string {
 
 export default function PortalProfilePage() {
   const { borrower, refresh } = useBorrowerAuth();
+  const { t } = useI18n();
 
   const [profileForm, setProfileForm] = useState({
     name: borrower?.name ?? "",
@@ -61,9 +63,9 @@ export default function PortalProfilePage() {
     try {
       await borrowerApi.put("/borrower/profile", profileForm);
       await refresh();
-      setProfileSuccess("Profile updated.");
+      setProfileSuccess(t("profile.saved"));
     } catch (err: unknown) {
-      setProfileError(extractErrorMessage(err, "Couldn't update your profile."));
+      setProfileError(extractErrorMessage(err, t("profile.saveError")));
     } finally {
       setSavingProfile(false);
     }
@@ -78,9 +80,9 @@ export default function PortalProfilePage() {
     try {
       await borrowerApi.post("/borrower/change-password", passwordForm);
       setPasswordForm({ current_password: "", password: "", password_confirmation: "" });
-      setPasswordSuccess("Password changed.");
+      setPasswordSuccess(t("profile.passwordChanged"));
     } catch (err: unknown) {
-      setPasswordError(extractErrorMessage(err, "Couldn't change your password."));
+      setPasswordError(extractErrorMessage(err, t("profile.passwordError")));
     } finally {
       setSavingPassword(false);
     }
@@ -91,10 +93,8 @@ export default function PortalProfilePage() {
       <div className="flex items-center gap-3">
         <Avatar name={borrower.name} className="size-12 text-base" />
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Profile</h1>
-          <p className="text-sm text-muted-foreground">
-            Update your contact details or change your password.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("profile.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("profile.subtitle")}</p>
         </div>
       </div>
 
@@ -105,7 +105,7 @@ export default function PortalProfilePage() {
               <UserRound className="size-4.5" />
             </span>
             <div>
-              <CardTitle as="h2" className="text-base">Your details</CardTitle>
+              <CardTitle as="h2" className="text-base">{t("profile.detailsTitle")}</CardTitle>
               <CardDescription>@{borrower.username}</CardDescription>
             </div>
           </CardHeader>
@@ -122,7 +122,7 @@ export default function PortalProfilePage() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
+              <Label htmlFor="name">{t("profile.name")}</Label>
               <Input
                 id="name"
                 required
@@ -131,7 +131,7 @@ export default function PortalProfilePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">{t("login.username")}</Label>
               <Input
                 id="username"
                 required
@@ -141,7 +141,7 @@ export default function PortalProfilePage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="email">
-                Email <span className="text-muted-foreground">(optional)</span>
+                {t("profile.email")} <span className="text-muted-foreground">{t("common.optional")}</span>
               </Label>
               <Input
                 id="email"
@@ -151,15 +151,19 @@ export default function PortalProfilePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone</Label>
+              <Label htmlFor="phone">{t("profile.phone")}</Label>
               <Input
                 id="phone"
+                type="tel"
+                inputMode="tel"
                 value={profileForm.phone}
                 onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                aria-describedby="phone_hint"
               />
+              <p id="phone_hint" className="text-xs text-muted-foreground">{t("profile.phoneHint")}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="location">Location</Label>
+              <Label htmlFor="location">{t("profile.address")}</Label>
               <Input
                 id="location"
                 value={profileForm.location}
@@ -169,7 +173,7 @@ export default function PortalProfilePage() {
           </CardContent>
           <CardFooter>
             <Button type="submit" disabled={savingProfile}>
-              {savingProfile ? <Loader2 className="size-4 animate-spin" /> : "Save changes"}
+              {savingProfile ? <Loader2 className="size-4 animate-spin" /> : t("common.saveChanges")}
             </Button>
           </CardFooter>
         </form>
@@ -181,7 +185,7 @@ export default function PortalProfilePage() {
             <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-chart-4/15 text-data-4">
               <Lock className="size-4.5" />
             </span>
-            <CardTitle as="h2" className="text-base">Change password</CardTitle>
+            <CardTitle as="h2" className="text-base">{t("profile.passwordTitle")}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {passwordError && (
@@ -196,7 +200,7 @@ export default function PortalProfilePage() {
             )}
 
             <div className="space-y-1.5">
-              <Label htmlFor="current_password">Current password</Label>
+              <Label htmlFor="current_password">{t("profile.currentPassword")}</Label>
               <Input
                 id="current_password"
                 type="password"
@@ -208,7 +212,7 @@ export default function PortalProfilePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">New password</Label>
+              <Label htmlFor="password">{t("profile.newPassword")}</Label>
               <Input
                 id="password"
                 type="password"
@@ -216,10 +220,12 @@ export default function PortalProfilePage() {
                 minLength={6}
                 value={passwordForm.password}
                 onChange={(e) => setPasswordForm({ ...passwordForm, password: e.target.value })}
+                aria-describedby="password_hint"
               />
+              <p id="password_hint" className="text-xs text-muted-foreground">{t("profile.newPasswordHint")}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password_confirmation">Confirm new password</Label>
+              <Label htmlFor="password_confirmation">{t("profile.confirmPassword")}</Label>
               <Input
                 id="password_confirmation"
                 type="password"
@@ -234,7 +240,7 @@ export default function PortalProfilePage() {
           </CardContent>
           <CardFooter>
             <Button type="submit" disabled={savingPassword}>
-              {savingPassword ? <Loader2 className="size-4 animate-spin" /> : "Change password"}
+              {savingPassword ? <Loader2 className="size-4 animate-spin" /> : t("profile.passwordTitle")}
             </Button>
           </CardFooter>
         </form>

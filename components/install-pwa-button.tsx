@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { useI18n } from "@/lib/i18n";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -43,6 +44,7 @@ function isStandalone(): boolean {
  * instead of silently rendering nothing.
  */
 export function InstallPwaButton() {
+  const { t, rich } = useI18n();
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosInstructions, setShowIosInstructions] = useState(false);
   const [showIosButton, setShowIosButton] = useState(false);
@@ -82,29 +84,22 @@ export function InstallPwaButton() {
           onClick={() => setShowIosInstructions(true)}
         >
           <Download className="size-4" />
-          Install app
+          {t("install.button")}
         </Button>
 
         <Modal
           open={showIosInstructions}
           onClose={() => setShowIosInstructions(false)}
-          title="Install this app on your iPhone/iPad"
-          description="iOS doesn't let a website trigger this on its own — a couple of manual taps in Safari:"
+          title={t("install.iosTitle")}
+          description={t("install.iosDesc")}
         >
           <ol className="list-decimal space-y-2 pl-5 text-sm">
-            <li>
-              Tap the <strong>Share</strong> button in Safari&apos;s toolbar (the square with an
-              arrow pointing up).
-            </li>
-            <li>
-              Scroll down the menu and tap <strong>Add to Home Screen</strong>.
-            </li>
-            <li>
-              Tap <strong>Add</strong> in the top-right corner.
-            </li>
+            <li>{rich("install.iosStep1", { share: <strong>{t("install.share")}</strong> })}</li>
+            <li>{rich("install.iosStep2", { add: <strong>{t("install.addToHome")}</strong> })}</li>
+            <li>{rich("install.iosStep3", { addButton: <strong>{t("install.add")}</strong> })}</li>
           </ol>
           <Button className="w-full" onClick={() => setShowIosInstructions(false)}>
-            Got it
+            {t("install.gotIt")}
           </Button>
         </Modal>
       </>
@@ -126,7 +121,7 @@ export function InstallPwaButton() {
       }}
     >
       <Download className="size-4" />
-      Install app
+      {t("install.button")}
     </Button>
   );
 }

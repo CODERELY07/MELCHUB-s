@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { AuthProvider } from "@/lib/auth-context";
 import { BorrowerAuthProvider } from "@/lib/borrower-auth-context";
+import { I18nProvider } from "@/lib/i18n";
 
 /**
  * Both auth contexts are global, not just BorrowerAuthProvider scoped under
@@ -13,8 +14,10 @@ import { BorrowerAuthProvider } from "@/lib/borrower-auth-context";
  */
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider>
-      <BorrowerAuthProvider>{children}</BorrowerAuthProvider>
-    </AuthProvider>
+    <I18nProvider>
+      <AuthProvider>
+        <BorrowerAuthProvider>{children}</BorrowerAuthProvider>
+      </AuthProvider>
+    </I18nProvider>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { isAxiosError } from "axios";
 
 import borrowerApi from "@/lib/borrower-axios";
@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Modal } from "@/components/ui/modal";
+import { useLateFee } from "@/components/next-payment-card";
 import { formatCurrency } from "@/lib/format";
-import { cachedGet } from "@/lib/offline-cache";
+import { useI18n } from "@/lib/i18n";
 import { installmentRate, useRepaymentPlans } from "@/lib/use-repayment-plans";
-import type { LoanDefaultsSettings, LoanRequest, LoanRequestPlan } from "@/lib/types";
+import type { LoanRequest, LoanRequestPlan } from "@/lib/types";
 
 interface LoanRequestModalProps {
   open: boolean;
@@ -24,32 +25,22 @@ interface LoanRequestModalProps {
 }
 
 /**
- * Gates a loan request behind actually reading the repayment rules — the
- * submit button stays disabled until the checkbox is checked, same pattern
- * as TermsModal's checkbox + name match. The backend re-validates
- * `acknowledged` as `required|accepted`, and re-checks the amount against
- * `availableCredit` server-side too (see LoanRequestController::store()),
- * since a disabled button/input is UX only, not a security boundary.
+ * Asking for a loan, in the order a borrower thinks about it: how much →
+ * how to pay it back (with the real per-payment amount) → the rules about
+ * paying late, read before sending. The backend re-checks the amount and
+ * the "I've read this" box (LoanRequestController::store()) — a disabled
+ * button here is a convenience, not the rule.
  */
 export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }: LoanRequestModalProps) {
+  const { t } = useI18n();
   const plans = useRepaymentPlans("borrower", open);
+  const lateFee = useLateFee();
   const [plan, setPlan] = useState<LoanRequestPlan | "">("");
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [lateFee, setLateFee] = useState<number | null>(null);
-
-  // The late fee is admin-configurable, so show the real current figure.
-  useEffect(() => {
-    if (!open) return;
-    cachedGet("loan-defaults", () =>
-      borrowerApi.get("/settings/loan-defaults").then((res) => res.data as LoanDefaultsSettings)
-    )
-      .then((d) => setLateFee(Number(d.late_fee_amount)))
-      .catch(() => setLateFee(null));
-  }, [open]);
 
   const reset = () => {
     setPlan("");
@@ -72,24 +63,24 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
     e.preventDefault();
     setError("");
 
-    if (!plan) {
-      setError("Please choose which plan you're interested in.");
-      return;
-    }
     if (!amountValid) {
-      setError("Please enter how much you'd like to borrow.");
+      setError(t("req.errorAmount"));
       return;
     }
     if (!withinLimit) {
       setError(
         availableCredit !== null
-          ? `That's more than your available credit of ${formatCurrency(availableCredit)}.`
-          : "Your loan officer hasn't set a borrowing limit for your account yet."
+          ? t("req.errorOver", { amount: formatCurrency(availableCredit) })
+          : t("home.noLimit")
       );
       return;
     }
+    if (!plan) {
+      setError(t("req.errorPlan"));
+      return;
+    }
     if (!acknowledged) {
-      setError("Please check the box to confirm you've read the repayment rules.");
+      setError(t("req.errorAck"));
       return;
     }
 
@@ -104,23 +95,15 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
       reset();
       onSubmitted(res.data);
     } catch (err: unknown) {
-      setError(
-        (isAxiosError(err) && err.response?.data?.message) ||
-          "Couldn't submit your request. Please try again."
-      );
+      setError((isAxiosError(err) && err.response?.data?.message) || t("req.errorFailed"));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title="Request a New Loan"
-      description="Enter how much you'd like to borrow, then pick a repayment plan."
-    >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <Modal open={open} onClose={handleClose} title={t("req.title")} description={t("req.desc")}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
@@ -129,106 +112,87 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
 
         {availableCredit === null ? (
           <Alert variant="destructive">
-            <AlertDescription>
-              Loans aren&apos;t open for requests right now — your loan officer hasn&apos;t set a lending
-              budget or a borrowing limit for your account yet. Please contact them directly.
-            </AlertDescription>
+            <AlertDescription>{t("req.noLimit")}</AlertDescription>
           </Alert>
         ) : availableCredit <= 0 ? (
           <Alert variant="destructive">
-            <AlertDescription>
-              There&apos;s nothing available to borrow right now — you&apos;ve reached your limit, or the
-              lending budget is fully used. Check back later or contact your loan officer.
-            </AlertDescription>
+            <AlertDescription>{t("req.noRoom")}</AlertDescription>
           </Alert>
         ) : (
           <>
             <div className="space-y-1.5">
-              <Label htmlFor="loan_request_amount">Amount you&apos;d like to borrow</Label>
+              <Label htmlFor="loan_request_amount">{t("req.amount")}</Label>
               <Input
                 id="loan_request_amount"
                 type="number"
+                inputMode="decimal"
                 step="0.01"
                 min="1"
                 max={availableCredit}
                 required
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                aria-describedby="loan_request_amount_hint"
               />
-              <p className="text-xs text-muted-foreground">
-                Available: {formatCurrency(availableCredit)}
+              <p id="loan_request_amount_hint" className="text-xs text-muted-foreground">
+                {t("req.available", { amount: formatCurrency(availableCredit) })}
               </p>
             </div>
 
-            <div className="flex flex-col gap-3">
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1.5 text-sm font-medium">{t("req.planLabel")}</legend>
               {(plans ?? []).map((option) => {
                 const installment = amountValid ? numericAmount * installmentRate(option) : null;
-                const cadenceLabel = option.period_days === 7 ? "every week" : `every ${option.period_days} days`;
+                const period = option.period_days === 7 ? t("req.week") : t("req.days", { days: option.period_days });
 
                 return (
                   <label
                     key={option.key}
-                    className={`flex cursor-pointer flex-col gap-1.5 rounded-lg border p-3 text-sm transition-colors ${
-                      plan === option.key ? "border-primary bg-primary/5" : "border-border"
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors ${
+                      plan === option.key ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
                     }`}
                   >
-                    <div className="flex items-start gap-2">
-                      <input
-                        type="radio"
-                        name="plan"
-                        className="mt-1 size-4"
-                        checked={plan === option.key}
-                        onChange={() => setPlan(option.key)}
-                      />
-                      <span className="font-medium">
-                        {option.name}{" "}
-                        <span className="text-muted-foreground">
-                          ({option.installments} × {option.period_days}-day)
-                        </span>
+                    <input
+                      type="radio"
+                      name="plan"
+                      className="mt-1 size-4"
+                      checked={plan === option.key}
+                      onChange={() => setPlan(option.key)}
+                    />
+                    <span className="flex flex-col gap-0.5">
+                      <span className="font-medium">{option.name}</span>
+                      <span className="text-muted-foreground">
+                        {t("req.planDetail", { count: option.installments, period })}
                       </span>
-                    </div>
-                    <p className="ml-6 text-muted-foreground">
-                      {installment !== null ? (
-                        <>
-                          <strong className="text-foreground">{formatCurrency(installment)}</strong>{" "}
-                          {cadenceLabel}, {option.installments} installments total.
-                        </>
-                      ) : (
-                        <>Enter an amount above to see your {cadenceLabel} installment.</>
-                      )}
-                    </p>
+                      <span className={installment !== null ? "font-semibold tabular-nums" : "text-muted-foreground"}>
+                        {installment !== null
+                          ? t("req.perPayment", { amount: formatCurrency(installment) })
+                          : t("req.enterAmountFirst")}
+                      </span>
+                    </span>
                   </label>
                 );
               })}
-            </div>
+            </fieldset>
 
             <div className="space-y-1.5">
-              <label htmlFor="loan_request_message" className="text-sm font-medium">
-                Anything you&apos;d like to add? <span className="text-muted-foreground">(optional)</span>
-              </label>
-              <Textarea
-                id="loan_request_message"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-              />
+              <Label htmlFor="loan_request_message">
+                {t("req.message")} <span className="text-muted-foreground">{t("common.optional")}</span>
+              </Label>
+              <Textarea id="loan_request_message" value={message} onChange={(e) => setMessage(e.target.value)} />
             </div>
 
-            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-              <p className="mb-1.5 font-semibold">Important — due dates &amp; late payment</p>
+            <div className="rounded-lg bg-warning/10 p-3 text-sm ring-1 ring-warning/30">
+              <p className="mb-1.5 font-semibold">{t("req.rulesTitle")}</p>
               <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>{t("req.rule1")}</li>
                 <li>
-                  Each installment must be paid <strong className="text-foreground">on or before its due date</strong>{" "}
-                  (on the schedule of your chosen plan).
+                  {lateFee !== null && lateFee > 0
+                    ? t("req.rule2Fee", { fee: formatCurrency(lateFee) })
+                    : t("req.rule2")}
                 </li>
-                <li>
-                  If you can&apos;t pay by the due date, a{" "}
-                  <strong className="text-foreground">
-                    late fee{lateFee !== null ? ` of ${formatCurrency(lateFee)}` : ""}
-                  </strong>{" "}
-                  is added to your balance and your due date is pushed out by one installment period.
-                </li>
-                <li>The late fee can repeat each time an installment is missed, and interest keeps accruing until the loan is fully paid.</li>
-                <li>You&apos;ll get an SMS reminder about your due date and any late fee.</li>
+                <li>{t("req.rule3")}</li>
+                <li>{t("req.rule4")}</li>
               </ul>
             </div>
 
@@ -239,18 +203,18 @@ export function LoanRequestModal({ open, onClose, onSubmitted, availableCredit }
                 checked={acknowledged}
                 onChange={(e) => setAcknowledged(e.target.checked)}
               />
-              I have read and understood the repayment plan above. I understand a late fee is added
-              when an installment is not paid by its due date.
+              {t("req.ack")}
             </label>
           </>
         )}
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={handleClose}>
-            Cancel
+            {t("common.cancel")}
           </Button>
+          {/* Always shown (disabled until everything's filled in) — a missing button read as "you can't ask at all". */}
           <Button type="submit" disabled={!acknowledged || !plan || !withinLimit || submitting}>
-            {submitting ? "Submitting..." : "Submit request"}
+            {submitting ? t("req.submitting") : t("req.submit")}
           </Button>
         </div>
       </form>

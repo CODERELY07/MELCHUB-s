@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useRepaymentPlans } from "@/lib/use-repayment-plans";
+import { useI18n } from "@/lib/i18n";
 import type { LoanRequest, LoanRequestStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<LoanRequestStatus, "muted" | "success" | "destructive"> = {
@@ -24,6 +25,7 @@ const STATUS_BADGE: Record<LoanRequestStatus, "muted" | "success" | "destructive
 };
 
 export default function AdminLoanRequestsPage() {
+  const { t } = useI18n();
   const plans = useRepaymentPlans("staff");
   const planLabel = (key: string) => plans?.find((p) => p.key === key)?.name ?? key;
   const [requests, setRequests] = useState<LoanRequest[] | null>(null);
@@ -42,7 +44,7 @@ export default function AdminLoanRequestsPage() {
     api
       .get("/loan-requests", { params: filter === "pending" ? { status: "pending" } : {} })
       .then((res) => setRequests(res.data))
-      .catch(() => setError("Couldn't load loan requests."));
+      .catch(() => setError(t("requests.loadError")));
   };
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function AdminLoanRequestsPage() {
       await api.post(`/loan-requests/${request.id}/accept`);
       load();
     } catch (err: unknown) {
-      setAcceptError((isAxiosError(err) && err.response?.data?.message) || "Couldn't accept this request.");
+      setAcceptError((isAxiosError(err) && err.response?.data?.message) || t("requests.acceptError"));
     } finally {
       setAcceptingId(null);
     }
@@ -76,7 +78,7 @@ export default function AdminLoanRequestsPage() {
       setDeclineNote("");
       load();
     } catch (err: unknown) {
-      setDeclineError((isAxiosError(err) && err.response?.data?.message) || "Couldn't decline this request.");
+      setDeclineError((isAxiosError(err) && err.response?.data?.message) || t("requests.declineError"));
     } finally {
       setDeclining(false);
     }
@@ -86,10 +88,8 @@ export default function AdminLoanRequestsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Loan Requests</h1>
-          <p className="text-sm text-muted-foreground">
-            Borrowers asking for a new loan, after reading the repayment rules.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.loanRequests")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("requests.subtitle")}</p>
         </div>
         <div className="flex gap-1 self-start rounded-lg border border-border p-1 sm:self-auto">
           <Button
@@ -97,10 +97,10 @@ export default function AdminLoanRequestsPage() {
             variant={filter === "pending" ? "default" : "ghost"}
             onClick={() => setFilter("pending")}
           >
-            Pending
+            {t("receipts.filterWaiting")}
           </Button>
           <Button size="sm" variant={filter === "all" ? "default" : "ghost"} onClick={() => setFilter("all")}>
-            All
+            {t("history.filterAll")}
           </Button>
         </div>
       </div>
@@ -118,8 +118,7 @@ export default function AdminLoanRequestsPage() {
 
       <Alert>
         <AlertDescription>
-          Accepting a request creates the loan right away — active, using the requested amount and the plan
-          they picked. You can adjust it afterward on the Loans page like any other loan.
+          {t("requests.acceptInfo")}
         </AlertDescription>
       </Alert>
 
@@ -129,22 +128,22 @@ export default function AdminLoanRequestsPage() {
         </div>
       ) : requests.length === 0 ? (
         <div className="rounded-xl border border-border py-8 text-center text-sm text-muted-foreground">
-          No loan requests {filter === "pending" ? "pending review" : "yet"}.
+          {filter === "pending" ? t("requests.emptyWaiting") : t("requests.emptyAll")}
         </div>
       ) : (
         <>
           {/* Table — md and up */}
           <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full text-left text-sm">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Borrower</th>
-                  <th className="px-3 py-2 font-medium">Requested</th>
-                  <th className="px-3 py-2 font-medium">Plan</th>
-                  <th className="px-3 py-2 font-medium">Message</th>
-                  <th className="px-3 py-2 font-medium">Submitted</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                  <th className="px-3 py-2 font-medium">{t("loans.colBorrower")}</th>
+                  <th className="px-3 py-2 font-medium">{t("requests.amount")}</th>
+                  <th className="px-3 py-2 font-medium">{t("loans.plan")}</th>
+                  <th className="px-3 py-2 font-medium">{t("requests.message")}</th>
+                  <th className="px-3 py-2 font-medium">{t("receipts.sent")}</th>
+                  <th className="px-3 py-2 font-medium">{t("loans.colStatus")}</th>
+                  <th className="px-3 py-2 font-medium text-right">{t("loans.colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -160,10 +159,10 @@ export default function AdminLoanRequestsPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{formatCurrency(request.requested_amount)}</div>
+                      <div className="font-medium tabular-nums">{formatCurrency(request.requested_amount)}</div>
                       {request.borrower?.available_credit != null && (
                         <div className="text-xs text-muted-foreground">
-                          {formatCurrency(request.borrower.available_credit)} available
+                          {t("requests.canBorrow", { amount: formatCurrency(request.borrower.available_credit) })}
                         </div>
                       )}
                     </td>
@@ -171,7 +170,7 @@ export default function AdminLoanRequestsPage() {
                     <td className="max-w-[240px] px-3 py-2 text-muted-foreground">{request.message || "—"}</td>
                     <td className="px-3 py-2">{formatDate(request.created_at)}</td>
                     <td className="px-3 py-2">
-                      <Badge variant={STATUS_BADGE[request.status]}>{request.status}</Badge>
+                      <Badge variant={STATUS_BADGE[request.status]}>{t(`requests.status.${request.status}`)}</Badge>
                       {request.status === "declined" && request.admin_note && (
                         <div className="mt-1 max-w-[200px] text-xs text-muted-foreground">{request.admin_note}</div>
                       )}
@@ -179,30 +178,25 @@ export default function AdminLoanRequestsPage() {
                     <td className="px-3 py-2">
                       {request.status === "pending" ? (
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleAccept(request)}
-                            disabled={acceptingId === request.id}
-                            aria-label="Accept"
-                          >
+                          <Button size="sm" onClick={() => handleAccept(request)} disabled={acceptingId === request.id}>
                             {acceptingId === request.id ? (
                               <Loader2 className="size-3.5 animate-spin" />
                             ) : (
                               <Check className="size-3.5" />
                             )}
+                            {t("requests.accept")}
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon-sm"
+                            variant="outline"
+                            size="sm"
                             onClick={() => {
                               setDeclineTarget(request);
                               setDeclineNote("");
                               setDeclineError("");
                             }}
-                            aria-label="Decline"
                           >
                             <X className="size-3.5" />
+                            {t("requests.decline")}
                           </Button>
                         </div>
                       ) : (
@@ -230,34 +224,34 @@ export default function AdminLoanRequestsPage() {
                         <div className="text-xs text-muted-foreground">@{request.borrower?.username}</div>
                       </div>
                     </div>
-                    <Badge variant={STATUS_BADGE[request.status]}>{request.status}</Badge>
+                    <Badge variant={STATUS_BADGE[request.status]}>{t(`requests.status.${request.status}`)}</Badge>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <div className="text-xs text-muted-foreground">Requested</div>
-                      <div className="font-medium">{formatCurrency(request.requested_amount)}</div>
+                      <div className="text-xs text-muted-foreground">{t("requests.amount")}</div>
+                      <div className="font-medium tabular-nums">{formatCurrency(request.requested_amount)}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Plan</div>
+                      <div className="text-xs text-muted-foreground">{t("loans.plan")}</div>
                       <div>{planLabel(request.plan)}</div>
                     </div>
                   </div>
 
                   {request.borrower?.available_credit != null && (
                     <div className="text-xs text-muted-foreground">
-                      {formatCurrency(request.borrower.available_credit)} available
+                      {t("requests.canBorrow", { amount: formatCurrency(request.borrower.available_credit) })}
                     </div>
                   )}
 
                   {request.message && (
                     <div className="text-sm">
-                      <div className="text-xs text-muted-foreground">Message</div>
+                      <div className="text-xs text-muted-foreground">{t("requests.message")}</div>
                       <div>{request.message}</div>
                     </div>
                   )}
 
-                  <div className="text-xs text-muted-foreground">Submitted {formatDate(request.created_at)}</div>
+                  <div className="text-xs text-muted-foreground">{t("pay.sentOn", { date: formatDate(request.created_at) })}</div>
 
                   {request.status === "declined" && request.admin_note && (
                     <div className="text-xs text-muted-foreground">{request.admin_note}</div>
@@ -265,9 +259,9 @@ export default function AdminLoanRequestsPage() {
 
                   {request.status === "pending" ? (
                     <div className="flex gap-2 border-t border-border pt-3">
-                      <Button variant="outline" className="flex-1" onClick={() => handleAccept(request)}>
+                      <Button className="flex-1" onClick={() => handleAccept(request)} disabled={acceptingId === request.id}>
                         <Check className="size-4" />
-                        Accept
+                        {t("requests.accept")}
                       </Button>
                       <Button
                         variant="outline"
@@ -279,13 +273,13 @@ export default function AdminLoanRequestsPage() {
                         }}
                       >
                         <X className="size-4" />
-                        Decline
+                        {t("requests.decline")}
                       </Button>
                     </div>
                   ) : (
                     request.reviewer?.name && (
                       <div className="border-t border-border pt-3 text-xs text-muted-foreground">
-                        Reviewed by {request.reviewer.name}
+                        {t("receipts.reviewedBy", { name: request.reviewer.name })}
                       </div>
                     )
                   )}
@@ -299,8 +293,8 @@ export default function AdminLoanRequestsPage() {
       <Modal
         open={!!declineTarget}
         onClose={() => setDeclineTarget(null)}
-        title={`Decline request from ${declineTarget?.borrower?.name ?? ""}`}
-        description="This note is sent to the borrower by SMS exactly as written."
+        title={t("requests.declineTitle", { name: declineTarget?.borrower?.name ?? "" })}
+        description={t("receipts.rejectDesc")}
       >
         <form onSubmit={submitDecline} className="flex flex-col gap-4">
           {declineError && (
@@ -309,21 +303,21 @@ export default function AdminLoanRequestsPage() {
             </Alert>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="decline_note">Reason (sent to borrower)</Label>
+            <Label htmlFor="decline_note">{t("receipts.rejectReason")}</Label>
             <Textarea
               id="decline_note"
               required
-              placeholder="e.g. Please finish paying off your current loan first."
+              placeholder={t("requests.declinePlaceholder")}
               value={declineNote}
               onChange={(e) => setDeclineNote(e.target.value)}
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setDeclineTarget(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" variant="destructive" disabled={declining}>
-              {declining ? <Loader2 className="size-4 animate-spin" /> : "Decline"}
+              {declining ? <Loader2 className="size-4 animate-spin" /> : t("requests.declineConfirm")}
             </Button>
           </div>
         </form>

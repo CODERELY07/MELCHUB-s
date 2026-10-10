@@ -15,6 +15,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { useI18n } from "@/lib/i18n";
 import type { PaymentProof, PaymentProofStatus } from "@/lib/types";
 
 const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructive"> = {
@@ -24,6 +25,7 @@ const STATUS_BADGE: Record<PaymentProofStatus, "muted" | "success" | "destructiv
 };
 
 export default function AdminPaymentProofsPage() {
+  const { t } = useI18n();
   const [proofs, setProofs] = useState<PaymentProof[] | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
   const [error, setError] = useState("");
@@ -38,11 +40,16 @@ export default function AdminPaymentProofsPage() {
   const [rejectError, setRejectError] = useState("");
   const [rejecting, setRejecting] = useState(false);
 
+  // A receipt for all of a person's loans has no loan — name the person
+  // from the receipt itself and say it covers all loans.
+  const who = (proof: PaymentProof) => proof.loan?.name ?? proof.borrower?.name ?? "?";
+  const which = (proof: PaymentProof) => proof.loan?.loan_number ?? t("receipts.allLoans");
+
   const load = () => {
     api
       .get("/payment-proofs", { params: filter === "pending" ? { status: "pending" } : {} })
       .then((res) => setProofs(res.data))
-      .catch(() => setError("Couldn't load payment proofs."));
+      .catch(() => setError(t("receipts.loadError")));
   };
 
   useEffect(() => {
@@ -67,7 +74,7 @@ export default function AdminPaymentProofsPage() {
       setApproveTarget(null);
       load();
     } catch (err: unknown) {
-      setApproveError((isAxiosError(err) && err.response?.data?.message) || "Couldn't approve this proof.");
+      setApproveError((isAxiosError(err) && err.response?.data?.message) || t("receipts.approveError"));
     } finally {
       setApproving(false);
     }
@@ -85,7 +92,7 @@ export default function AdminPaymentProofsPage() {
       setRejectNote("");
       load();
     } catch (err: unknown) {
-      setRejectError((isAxiosError(err) && err.response?.data?.message) || "Couldn't reject this proof.");
+      setRejectError((isAxiosError(err) && err.response?.data?.message) || t("receipts.rejectError"));
     } finally {
       setRejecting(false);
     }
@@ -95,10 +102,8 @@ export default function AdminPaymentProofsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Payment Proofs</h1>
-          <p className="text-sm text-muted-foreground">
-            Review GCash screenshots borrowers have submitted.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("nav.receipts")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("receipts.subtitle")}</p>
         </div>
         <div className="flex gap-1 self-start rounded-lg border border-border p-1 sm:self-auto">
           <Button
@@ -106,10 +111,10 @@ export default function AdminPaymentProofsPage() {
             variant={filter === "pending" ? "default" : "ghost"}
             onClick={() => setFilter("pending")}
           >
-            Pending
+            {t("receipts.filterWaiting")}
           </Button>
           <Button size="sm" variant={filter === "all" ? "default" : "ghost"} onClick={() => setFilter("all")}>
-            All
+            {t("history.filterAll")}
           </Button>
         </div>
       </div>
@@ -126,21 +131,21 @@ export default function AdminPaymentProofsPage() {
         </div>
       ) : proofs.length === 0 ? (
         <div className="rounded-xl border border-border py-8 text-center text-sm text-muted-foreground">
-          No payment proofs {filter === "pending" ? "pending review" : "yet"}.
+          {filter === "pending" ? t("receipts.emptyWaiting") : t("receipts.emptyAll")}
         </div>
       ) : (
         <>
           {/* Table — md and up */}
           <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full text-left text-sm">
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+              <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
-                  <th className="px-3 py-2 font-medium">Loan</th>
-                  <th className="px-3 py-2 font-medium">Amount claimed</th>
-                  <th className="px-3 py-2 font-medium">Submitted</th>
-                  <th className="px-3 py-2 font-medium">Screenshot</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium text-right">Actions</th>
+                  <th className="px-3 py-2 font-medium">{t("loans.colBorrower")}</th>
+                  <th className="px-3 py-2 font-medium">{t("receipts.amountSent")}</th>
+                  <th className="px-3 py-2 font-medium">{t("receipts.sent")}</th>
+                  <th className="px-3 py-2 font-medium">{t("receipts.screenshot")}</th>
+                  <th className="px-3 py-2 font-medium">{t("loans.colStatus")}</th>
+                  <th className="px-3 py-2 font-medium text-right">{t("loans.colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -148,14 +153,14 @@ export default function AdminPaymentProofsPage() {
                   <tr key={proof.id}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2.5">
-                        <Avatar name={proof.loan?.name ?? "?"} />
+                        <Avatar name={who(proof)} />
                         <div>
-                          <div className="font-medium">{proof.loan?.name}</div>
-                          <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                          <div className="font-medium">{who(proof)}</div>
+                          <div className="text-xs text-muted-foreground">{which(proof)}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2">{formatCurrency(proof.amount)}</td>
+                    <td className="px-3 py-2 tabular-nums">{formatCurrency(proof.amount)}</td>
                     <td className="px-3 py-2">{formatDate(proof.created_at)}</td>
                     <td className="px-3 py-2">
                       <a
@@ -164,32 +169,33 @@ export default function AdminPaymentProofsPage() {
                         rel="noreferrer"
                         className="inline-flex items-center gap-1 text-primary hover:underline"
                       >
-                        View <ExternalLink className="size-3" />
+                        {t("receipts.view")} <ExternalLink className="size-3" />
                       </a>
                     </td>
                     <td className="px-3 py-2">
-                      <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
-                      {proof.status === "rejected" && proof.note && (
-                        <div className="mt-1 max-w-[200px] text-xs text-muted-foreground">{proof.note}</div>
+                      <Badge variant={STATUS_BADGE[proof.status]}>{t(`receipt.${proof.status}`)}</Badge>
+                      {proof.status !== "pending" && proof.note && (
+                        <div className="mt-1 max-w-[220px] text-xs text-muted-foreground">{proof.note}</div>
                       )}
                     </td>
                     <td className="px-3 py-2">
                       {proof.status === "pending" ? (
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon-sm" onClick={() => openApprove(proof)} aria-label="Approve">
+                          <Button size="sm" onClick={() => openApprove(proof)}>
                             <Check className="size-3.5" />
+                            {t("receipts.approve")}
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon-sm"
+                            variant="outline"
+                            size="sm"
                             onClick={() => {
                               setRejectTarget(proof);
                               setRejectNote("");
                               setRejectError("");
                             }}
-                            aria-label="Reject"
                           >
                             <X className="size-3.5" />
+                            {t("receipts.reject")}
                           </Button>
                         </div>
                       ) : (
@@ -211,22 +217,22 @@ export default function AdminPaymentProofsPage() {
                 <CardContent className="flex flex-col gap-3 pt-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5">
-                      <Avatar name={proof.loan?.name ?? "?"} />
+                      <Avatar name={who(proof)} />
                       <div>
-                        <div className="font-medium">{proof.loan?.name}</div>
-                        <div className="text-xs text-muted-foreground">{proof.loan?.loan_number}</div>
+                        <div className="font-medium">{who(proof)}</div>
+                        <div className="text-xs text-muted-foreground">{which(proof)}</div>
                       </div>
                     </div>
-                    <Badge variant={STATUS_BADGE[proof.status]}>{proof.status}</Badge>
+                    <Badge variant={STATUS_BADGE[proof.status]}>{t(`receipt.${proof.status}`)}</Badge>
                   </div>
 
                   <div className="flex items-center justify-between text-sm">
                     <div>
-                      <div className="text-xs text-muted-foreground">Amount claimed</div>
-                      <div className="font-medium">{formatCurrency(proof.amount)}</div>
+                      <div className="text-xs text-muted-foreground">{t("receipts.amountSent")}</div>
+                      <div className="font-medium tabular-nums">{formatCurrency(proof.amount)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-xs text-muted-foreground">Submitted</div>
+                      <div className="text-xs text-muted-foreground">{t("receipts.sent")}</div>
                       <div>{formatDate(proof.created_at)}</div>
                     </div>
                   </div>
@@ -237,22 +243,18 @@ export default function AdminPaymentProofsPage() {
                     rel="noreferrer"
                     className="inline-flex w-fit items-center gap-1 text-sm text-primary hover:underline"
                   >
-                    View screenshot <ExternalLink className="size-3" />
+                    {t("receipts.viewScreenshot")} <ExternalLink className="size-3" />
                   </a>
 
-                  {proof.status === "rejected" && proof.note && (
+                  {proof.status !== "pending" && proof.note && (
                     <div className="text-xs text-muted-foreground">{proof.note}</div>
                   )}
 
                   {proof.status === "pending" ? (
                     <div className="flex gap-2 border-t border-border pt-3">
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => openApprove(proof)}
-                      >
+                      <Button className="flex-1" onClick={() => openApprove(proof)}>
                         <Check className="size-4" />
-                        Approve
+                        {t("receipts.approve")}
                       </Button>
                       <Button
                         variant="outline"
@@ -264,13 +266,13 @@ export default function AdminPaymentProofsPage() {
                         }}
                       >
                         <X className="size-4" />
-                        Reject
+                        {t("receipts.reject")}
                       </Button>
                     </div>
                   ) : (
                     proof.reviewer?.name && (
                       <div className="border-t border-border pt-3 text-xs text-muted-foreground">
-                        Reviewed by {proof.reviewer.name}
+                        {t("receipts.reviewedBy", { name: proof.reviewer.name })}
                       </div>
                     )
                   )}
@@ -284,8 +286,8 @@ export default function AdminPaymentProofsPage() {
       <Modal
         open={!!approveTarget}
         onClose={() => setApproveTarget(null)}
-        title={`Approve payment for ${approveTarget?.loan?.name ?? ""}`}
-        description="This will record the payment on the loan and text the borrower a thank-you."
+        title={t("receipts.approveTitle", { name: approveTarget ? who(approveTarget) : "" })}
+        description={t("receipts.approveDesc")}
       >
         <form onSubmit={submitApprove} className="flex flex-col gap-4">
           {approveError && (
@@ -293,8 +295,13 @@ export default function AdminPaymentProofsPage() {
               <AlertDescription>{approveError}</AlertDescription>
             </Alert>
           )}
+          {approveTarget && approveTarget.loan_id === null && (
+            <Alert>
+              <AlertDescription>{t("receipts.allLoansHint")}</AlertDescription>
+            </Alert>
+          )}
           <div className="space-y-1.5">
-            <Label htmlFor="approve_amount">Amount to record</Label>
+            <Label htmlFor="approve_amount">{t("receipts.approveAmount")}</Label>
             <Input
               id="approve_amount"
               type="number"
@@ -303,14 +310,16 @@ export default function AdminPaymentProofsPage() {
               required
               value={approveAmount}
               onChange={(e) => setApproveAmount(e.target.value)}
+              aria-describedby="approve_amount_hint"
             />
+            <p id="approve_amount_hint" className="text-xs text-muted-foreground">{t("receipts.approveAmountHint")}</p>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setApproveTarget(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={approving}>
-              {approving ? <Loader2 className="size-4 animate-spin" /> : "Approve"}
+              {approving ? <Loader2 className="size-4 animate-spin" /> : t("receipts.approveConfirm")}
             </Button>
           </div>
         </form>
@@ -319,8 +328,8 @@ export default function AdminPaymentProofsPage() {
       <Modal
         open={!!rejectTarget}
         onClose={() => setRejectTarget(null)}
-        title={`Reject payment for ${rejectTarget?.loan?.name ?? ""}`}
-        description="This note is sent to the borrower by SMS exactly as written."
+        title={t("receipts.rejectTitle", { name: rejectTarget ? who(rejectTarget) : "" })}
+        description={t("receipts.rejectDesc")}
       >
         <form onSubmit={submitReject} className="flex flex-col gap-4">
           {rejectError && (
@@ -329,21 +338,21 @@ export default function AdminPaymentProofsPage() {
             </Alert>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="reject_note">Reason (sent to borrower)</Label>
+            <Label htmlFor="reject_note">{t("receipts.rejectReason")}</Label>
             <Textarea
               id="reject_note"
               required
-              placeholder="e.g. The amount in the screenshot doesn't match your loan balance."
+              placeholder={t("receipts.rejectPlaceholder")}
               value={rejectNote}
               onChange={(e) => setRejectNote(e.target.value)}
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => setRejectTarget(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" variant="destructive" disabled={rejecting}>
-              {rejecting ? <Loader2 className="size-4 animate-spin" /> : "Reject"}
+              {rejecting ? <Loader2 className="size-4 animate-spin" /> : t("receipts.rejectConfirm")}
             </Button>
           </div>
         </form>

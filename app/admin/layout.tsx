@@ -16,15 +16,19 @@ import {
 import { useAuth, LOGIN_PATH } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/app-shell";
+import { useI18n } from "@/lib/i18n";
+import type { MessageKey } from "@/lib/messages";
 
-const NAV_ITEMS = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/loans", label: "Loans", icon: Landmark },
-  { href: "/admin/clients/new", label: "Add Client", icon: UserPlus },
-  { href: "/admin/loan-requests", label: "Loan Requests", icon: FileCheck2 },
-  { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/admin/payment-proofs", label: "Payment Proofs", icon: ReceiptText },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+// Ordered by how often the owner reaches for each one — the first four
+// become the phone's bottom tabs, the rest go under "More".
+const NAV_ITEMS: { href: string; labelKey: MessageKey; icon: typeof LayoutDashboard }[] = [
+  { href: "/admin/dashboard", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/admin/loans", labelKey: "nav.loans", icon: Landmark },
+  { href: "/admin/payment-proofs", labelKey: "nav.receipts", icon: ReceiptText },
+  { href: "/admin/loan-requests", labelKey: "nav.loanRequests", icon: FileCheck2 },
+  { href: "/admin/clients/new", labelKey: "nav.addClient", icon: UserPlus },
+  { href: "/admin/analytics", labelKey: "nav.reports", icon: BarChart3 },
+  { href: "/admin/settings", labelKey: "nav.settings", icon: Settings },
 ];
 
 export default function AdminLayout({
@@ -33,6 +37,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const { user, loading, isAdmin, logout } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -57,10 +62,9 @@ export default function AdminLayout({
   if (!isAdmin) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
-        <h1 className="text-xl font-semibold">You don&apos;t have access to this page</h1>
+        <h1 className="text-xl font-semibold">{t("admin.noAccessTitle")}</h1>
         <p className="max-w-sm text-sm text-muted-foreground">
-          This area is restricted to admin accounts. You&apos;re signed in as{" "}
-          {user.username}.
+          {t("admin.noAccessBody", { name: user.username })}
         </p>
         <Button
           onClick={async () => {
@@ -68,7 +72,7 @@ export default function AdminLayout({
             router.push(LOGIN_PATH);
           }}
         >
-          Log out
+          {t("shell.logOut")}
         </Button>
       </div>
     );
@@ -76,8 +80,8 @@ export default function AdminLayout({
 
   return (
     <AppShell
-      title="MELCHUB Admin"
-      navItems={NAV_ITEMS}
+      title={t("nav.adminTitle")}
+      navItems={NAV_ITEMS.map(({ labelKey, ...item }) => ({ ...item, label: t(labelKey) }))}
       isActive={(href) => pathname?.startsWith(href) ?? false}
       userLabel={user.username}
       onLogout={async () => {
