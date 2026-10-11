@@ -1,3 +1,4 @@
+import { todayInManila } from "@/lib/format";
 import type { Loan, LoanStatus } from "@/lib/types";
 
 const CLOSED_STATUSES: LoanStatus[] = ["paid", "cancelled", "defaulted"];
@@ -11,6 +12,12 @@ function daysBetween(fromIso: string, toIso: string): number {
   const from = new Date(`${fromIso.slice(0, 10)}T00:00:00Z`).getTime();
   const to = new Date(`${toIso.slice(0, 10)}T00:00:00Z`).getTime();
   return Math.round((to - from) / 86400000);
+}
+
+function nextDay(iso: string): string {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 /**
@@ -32,8 +39,28 @@ export function projectedPayoff(loan: Loan, asOfDate: string): number {
     return round2(totalLoan + penalty - paid);
   }
 
-  const days = daysBetween(loan.start_date, asOfDate) + 1;
   const rate = Number(loan.interest_rate) / 100;
+
+  if (loan.interest_on_balance) {
+    // Interest on the balance: start from the server's own figure up to
+    // today (it knows every payment's date), then add each later day the
+    // way Loan::catchUpInterest()/simpleInterestDays() would — assuming no
+    // further payments. Late fees never earn interest.
+    const today = todayInManila();
+    const start = loan.start_date.slice(0, 10);
+    let interest = Number(loan.interest_amount);
+    const firstDay = start > today ? start : nextDay(today);
+    const days = asOfDate >= firstDay ? daysBetween(firstDay, asOfDate) + 1 : 0;
+
+    for (let i = 0; i < days; i++) {
+      const base = loan.compounds_interest ? totalLoan + interest - paid : totalLoan - paid;
+      interest = round2(interest + round2(Math.max(0, base) * rate));
+    }
+
+    return round2(totalLoan + interest + penalty - paid);
+  }
+
+  const days = daysBetween(loan.start_date, asOfDate) + 1;
   let interestAmount: number;
 
   if (loan.compounds_interest) {

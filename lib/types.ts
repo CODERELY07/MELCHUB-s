@@ -75,6 +75,8 @@ export interface Loan {
   interest_rate: string;
   /** Each day's interest calculated on principal + every prior day's interest, not just the original principal. */
   compounds_interest: boolean;
+  /** Interest charged on the balance after payments (every loan open on/after 2026-10-11). Missing/false = the old way, on the original amount. */
+  interest_on_balance?: boolean;
   repayment_plan: RepaymentPlan;
   installments_enabled: boolean;
   /** Missed weeks are charged the late fee automatically (the due date rolls forward each week). */
@@ -105,16 +107,24 @@ export interface Loan {
 }
 
 export interface LoanHistoryEntry {
-  type: "interest" | "payment" | "penalty";
+  type: "interest" | "payment" | "penalty" | "change";
   date: string;
   amount: number;
   day?: number;
   note?: string | null;
+  /** Who recorded the payment / made the change. */
   recorded_by?: string | null;
-  /** Compounding interest rows only — the balance right after that day's interest. */
+  /** Interest rows — the balance right after that day's interest. */
   balance?: number;
+  /** Interest rows — the daily % charged that day and the amount it was charged on (null on older rows). */
+  rate?: number | null;
+  base?: number | null;
   /** Penalty rows only — lets the admin remove a fee that shouldn't have been charged. */
   id?: number;
+  /** Change rows — which setting changed, from what, to what (plain text: "0.2", "1"/"0", "2026-10-11"). */
+  field?: string;
+  old_value?: string | null;
+  new_value?: string | null;
 }
 
 export interface PaymentSettings {
